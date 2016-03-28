@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 
 #include <GL/glew.h>
 
@@ -646,7 +647,7 @@ public:
 		std::pair<int, int> p = GetColRow(o->GetLocation());
 		const Sector *s = GetSector(p.first, p.second);
 		if (s && distanceMap.find(s) != distanceMap.end()) {
-			printf("Distance: %d Velocity: %f\n", distanceMap.find(s)->second, length(o->GetVelocity()));
+			//printf("Distance: %d Velocity: %f\n", distanceMap.find(s)->second, length(o->GetVelocity()));
 		}
 	}
 
@@ -655,7 +656,7 @@ public:
 		const glm::vec3 &v = o->GetVelocity();
 		glm::vec3 pos0 = o->GetLocation();
 		glm::vec3 pos1;
-		float time = max(0.5f, max(v.x, v.y) / a);
+		float time = max(0.5f, 4.0f * max(v.x, v.y) / a);
 		glm::vec3 directions[8];
 		int score[8];
 		directions[0] = glm::vec3(1.0f, 0.0f, 0.0f);
@@ -667,7 +668,8 @@ public:
 		directions[6] = glm::vec3(-1.0f, 1.0f, 0.0f);
 		directions[7] = glm::vec3(-1.0f, -1.0f, 0.0f);
 		int sectorsInTime = time * length(o->GetVelocity()) / sectorSize;
-		int intervals = max(20, sectorsInTime * 2);
+		int intervals = max(20, sectorsInTime * 4);
+		//printf("Intervals: %d Time: %f\n", intervals, time);
 		float intervalTime = time / intervals;
 		float intervalTimeSq = 0.5f * a * intervalTime * intervalTime;
 		std::pair<int, int> p0 = GetColRow(pos0);
@@ -688,20 +690,19 @@ public:
 				pos1 = pos0 + intervalTime * j * o->GetVelocity() + intervalTimeSq * j * j * direction;
 				std::pair<int, int> p = GetColRow(pos1);
 				const Sector *s = GetSector(p.first, p.second);
-				bool collision = false;
 				int newDistance = distance;
+				glm::vec3 normal(0.0f);
+				const glm::vec3 velocity = o->GetVelocity() + j * intervalTime * a * direction;
 				if (s) {
-					collision = true;
 					std::map<const Sector *, int>::const_iterator it = distanceMap.find(s);
 					if (it != distanceMap.end()) {
-						glm::vec3 normal = GetCollisionNormal(pos1, o->GetVelocity() + j * intervalTime * a * direction, o->GetRadius());
+						normal = GetCollisionNormal(pos1, velocity, o->GetRadius());
 						if (normal == glm::vec3(0.0f)) {
-							collision = false;
 							newDistance = it->second;
 						}
 					}
 				}
-				if (!collision) {
+				if (normal == glm::vec3(0.0f)) {
 					score[i] += distance - newDistance;
 					if (dynamic_cast<const OneWaySector *>(s)) {
 						score[i] += 10;
@@ -709,21 +710,34 @@ public:
 					}
 				}
 				else {
-					score[i] -= (int) (length(o->GetVelocity()) * 10);
+					if (0.2f > length(o->GetVelocity())) {
+						score[i] += (int)(dot(velocity, normal) * 10);
+					}
 					break;
 				}
 			}
 		}
 		int highScore = -1000;
 		glm::vec3 result(0.0f);
+		std::vector<int> best;
 		for (int i = 0; i < 8; i++) {
-			//printf("%d ", score[i]);
 			if (score[i] > highScore) {
 				highScore = score[i];
-				result = directions[i];
+				best.clear();
+				best.push_back(i);
+			}
+			else if (score[i] == highScore) {
+				best.push_back(i);
 			}
 		}
-		//printf("Result: %d\n", highScore);
+		if (!best.empty()) {
+			int dir = rand() % best.size();
+			result = directions[best.at(dir)];
+		}
+		/*
+		if (highScore < 0)
+			printf("Result: %d (%d)\n", highScore, best.size());
+			*/
 		return result;
 	}
 
@@ -922,8 +936,10 @@ int main( void )
 	// Get a handle for our "MVP" uniform
 	GLuint MatrixID = glGetUniformLocation(programID, "MVP");
 
-	std::vector<std::string> data = ReadGridFromFile("map.txt");
+	std::vector<std::string> data = ReadGridFromFile("viljo.txt");
 	Game game(data);
+
+	srand(time(NULL));
 
 	do {
 		// Clear the screen
