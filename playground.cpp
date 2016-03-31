@@ -64,14 +64,6 @@ private:
 	GLuint colorbuffer;
 };
 
-class AI {
-
-};
-
-class DummyAI : public AI {
-
-};
-
 // Circle shaped object
 class Object : public GLObject {
 public:
@@ -84,7 +76,6 @@ public:
 		location = initialLocation;
 		velocity = glm::vec3(0.0f);
 		acceleration = data.force / data.mass;
-		ai = 0;
 	}
 
 	void Draw(GLuint id, const glm::mat4 &view) const {
@@ -105,10 +96,6 @@ public:
 
 	float GetRadius() const {
 		return radius; 
-	}
-
-	void SetAI(const AI * const newAI) {
-		ai = newAI;
 	}
 
 	void Move(float time) {
@@ -161,10 +148,6 @@ public:
 		location = previousLocation;
 	}
 
-	const AI* GetAI() const {
-		return ai;
-	}
-
 private:
 	float radius;
 	float force;
@@ -172,7 +155,6 @@ private:
 	float acceleration;
 	float maxVelocity;
 	float elasticity;
-	const AI *ai;
 	glm::vec3 location;
 	glm::vec3 previousLocation;
 	glm::vec3 velocity;
@@ -229,10 +211,10 @@ public:
 	SquareSector(const glm::vec3 &location, float size, const glm::vec3 &color) :
 		SolidSector(location, CreateSquareData(size, color)) {
 		corners.reserve(4);
-		corners.push_back(location + UNIT_TL * size * 0.5f);
-		corners.push_back(location + UNIT_TR * size * 0.5f);
-		corners.push_back(location + UNIT_BR * size * 0.5f);
-		corners.push_back(location + UNIT_BL * size * 0.5f);
+		corners.push_back(location + UNIT_TL * size);
+		corners.push_back(location + UNIT_TR * size);
+		corners.push_back(location + UNIT_BR * size);
+		corners.push_back(location + UNIT_BL * size);
 	}
 
 	const vector<glm::vec3>& GetCorners() const {
@@ -277,13 +259,13 @@ public:
 		SolidSector(location, CreateTriangleData(size, color, type)), type(type) {
 		corners.reserve(3);
 		if (type != TRIANGLE_BR)
-			corners.push_back(location + UNIT_TL * size * 0.5f);
+			corners.push_back(location + UNIT_TL * size);
 		if (type != TRIANGLE_BL)
-			corners.push_back(location + UNIT_TR * size * 0.5f);
+			corners.push_back(location + UNIT_TR * size);
 		if (type != TRIANGLE_TL)
-			corners.push_back(location + UNIT_BR * size * 0.5f);
+			corners.push_back(location + UNIT_BR * size);
 		if (type != TRIANGLE_TR)
-			corners.push_back(location + UNIT_BL * size * 0.5f);
+			corners.push_back(location + UNIT_BL * size);
 	}
 
 	const vector<glm::vec3>& GetCorners() const {
@@ -298,40 +280,71 @@ private:
 	const SectorType type;
 };
 
+class AI {
+public:
+
+	virtual void Initialize(const map<const Sector *, vector<const Sector *>> &neighborMap,
+		const map<const OneWaySector *, const Sector *> &previousSectorMap) { }
+
+	virtual int GetDistance(const Sector *sector) const {
+		return 0;
+	}
+
+	virtual void Accelerate(float deltaTime) { }
+
+	void AddObject(Object *o) {
+		objects.insert(o);
+	}
+
+	Object * GetHuman(const vector<Object *> &allObjects) const {
+		for (vector<Object *>::const_iterator it = allObjects.begin(); it != allObjects.end(); ++it) {
+			if (objects.find(*it) == objects.end()) {
+				return *it;
+			}
+		}
+		return 0;
+	}
+protected:
+	set<Object *> objects;
+};
+
 const Sector* CreateSector(char c, vector<Object *> &objects,
-	const glm::vec3 &location, float sectorSize, const glm::vec3 &color) {
+	const glm::vec3 &location, float halfSectorSize, const glm::vec3 &color, AI *ai) {
 	if (c >= '1' && c <= '9') {
 		int id = c - '1';
 		objects.push_back(new Object(CreateObjectData(id), location));
+		if (c != '1') {
+			ai->AddObject(objects.back());
+		}
 	}
 	const Sector *sector = 0;
 	switch (c) {
 	case '#':
-		sector = new SquareSector(location, sectorSize, color);
+		sector = new SquareSector(location, halfSectorSize, color);
 		break;
 	case 'A':
-		sector = new TriangleSector(location, sectorSize, color, TRIANGLE_TL);
+		sector = new TriangleSector(location, halfSectorSize, color, TRIANGLE_TL);
 		break;
 	case 'B':
-		sector = new TriangleSector(location, sectorSize, color, TRIANGLE_TR);
+		sector = new TriangleSector(location, halfSectorSize, color, TRIANGLE_TR);
 		break;
 	case 'C':
-		sector = new TriangleSector(location, sectorSize, color, TRIANGLE_BL);
+		sector = new TriangleSector(location, halfSectorSize, color, TRIANGLE_BL);
 		break;
 	case 'D':
-		sector = new TriangleSector(location, sectorSize, color, TRIANGLE_BR);
+		sector = new TriangleSector(location, halfSectorSize, color, TRIANGLE_BR);
 		break;
 	case '>':
-		sector = new OneWaySector(location, sectorSize, color * 0.2f, UNIT_R);
+		sector = new OneWaySector(location, halfSectorSize, color * 0.2f, UNIT_R);
 		break;
 	case '<':
-		sector = new OneWaySector(location, sectorSize, color * 0.2f, UNIT_L);
+		sector = new OneWaySector(location, halfSectorSize, color * 0.2f, UNIT_L);
 		break;
 	case '^':
-		sector = new OneWaySector(location, sectorSize, color * 0.2f, UNIT_T);
+		sector = new OneWaySector(location, halfSectorSize, color * 0.2f, UNIT_T);
 		break;
 	case 'v':
-		sector = new OneWaySector(location, sectorSize, color * 0.2f, UNIT_B);
+		sector = new OneWaySector(location, halfSectorSize, color * 0.2f, UNIT_B);
 		break;
 	}
 	if (!sector) {
@@ -348,9 +361,9 @@ Grid has several purposes:
 */
 class Grid {
 public:
-	Grid(float sectorSize) : sectorSize(sectorSize) { }
+	Grid(float sectorSize) : sectorSize(sectorSize), halfSectorSize(sectorSize * 0.5f) { }
 
-	void Initialize(const vector<string> &data, vector<Object *> &objects) {
+	void Initialize(const vector<string> &data, vector<Object *> &objects, AI *ai) {
 
 		// Calculate the grid size based on data read from a map file
 		unsigned int cols = 0;
@@ -374,119 +387,156 @@ public:
 				float blue = glm::min(0.1f + 1.0f * j / rows, 0.9f);
 				const glm::vec3 color(0.0f, green, blue);
 				const char c = row.length() > i ? row.at(i) : ' ';
-				column.push_back(CreateSector(c, objects, location, sectorSize, color));
+				column.push_back(CreateSector(c, objects, location, halfSectorSize, color, ai));
 			}
 			sectors.push_back(column);
 		}
+
+		// Finally, initialize and feed some maps to AI...
+		map<const OneWaySector *, const Sector *> previousSectorMap;
+		map<const Sector *, vector<const Sector *>> neighborMap;
 		
 		// Calculate neighbor sectors for each sector
 		for (unsigned int i = 0; i < cols; i++) {
 			for (unsigned int j = 0; j < rows; j++) {
 
 				// Solid sectors have no neighbors
-				if (sectors.at(i).at(j)->IsSolid(ZERO)) {
+				const Sector * const s = sectors.at(i).at(j);
+				if (s->IsSolid(ZERO)) {
 					continue;
 				}
 
-				vector<pair<int, int>> neighbors;
+				vector<const Sector *> &neighbors =
+					neighborMap.insert(make_pair(s, vector<const Sector *>())).first->second;
+
+				// tl, tr, bl and br are counters for diagonal corners and the counter gets
+				// an increment if any of its neighbors is accessible. If counter is incremented
+				// twice it means that the corresponding diagonal corner is also a neighbor.
 				int tl = 0;
 				int tr = 0;
 				int bl = 0;
 				int br = 0;
+
+				const Sector *sector;
+
+				// top neighbor
 				if (j > 0) {
-					if (!sectors.at(i).at(j - 1)->IsSolid(glm::vec3(0.0f, 1.0f, 0.0f))) {
-						neighbors.push_back(std::make_pair(i, j - 1));
+					sector = sectors.at(i).at(j - 1);
+					if (!sector->IsSolid(UNIT_T)) {
+						neighbors.push_back(sector);
 						tl++;
 						tr++;
-					}
-					else {
-						const TriangleSector *triangle = dynamic_cast<const TriangleSector *>(sectors.at(i).at(j - 1));
-						if (triangle) {
-							if (triangle->GetType() == TRIANGLE_TL) {
-								tr++;
-								neighbors.push_back(std::make_pair(i, j - 1));
-							}
-							else if (triangle->GetType() == TRIANGLE_TR) {
-								tl++;
-								neighbors.push_back(std::make_pair(i, j - 1));
-							}
+						if (sector->GetType() == ONEWAY_UP) {
+							previousSectorMap[static_cast<const OneWaySector *>(sector)] = s;
 						}
 					}
+					else if (sector->GetType() == TRIANGLE_TL) {
+						tr++;
+						neighbors.push_back(sector);
+					}
+					else if (sector->GetType() == TRIANGLE_TR) {
+						tl++;
+						neighbors.push_back(sector);
+					}
 				}
+
+				// left neighbor
 				if (i > 0) {
-					if (!sectors.at(i - 1).at(j)->IsSolid(glm::vec3(-1.0f, 0.0f, 0.0f))) {
-						neighbors.push_back(std::make_pair(i - 1, j));
+					sector = sectors.at(i - 1).at(j);
+					if (!sector->IsSolid(UNIT_L)) {
+						neighbors.push_back(sector);
 						tl++;
 						bl++;
-					}
-					else {
-						const TriangleSector *triangle = dynamic_cast<const TriangleSector *>(sectors.at(i - 1).at(j));
-						if (triangle) {
-							if (triangle->GetType() == TRIANGLE_TL) {
-								bl++;
-								neighbors.push_back(std::make_pair(i - 1, j));
-							}
-							else if (triangle->GetType() == TRIANGLE_BL) {
-								tl++;
-								neighbors.push_back(std::make_pair(i - 1, j));
-							}
+						if (sector->GetType() == ONEWAY_LEFT) {
+							previousSectorMap[static_cast<const OneWaySector *>(sector)] = s;
 						}
 					}
+					else if (sector->GetType() == TRIANGLE_TL) {
+						bl++;
+						neighbors.push_back(sector);
+					}
+					else if (sector->GetType() == TRIANGLE_BL) {
+						tl++;
+						neighbors.push_back(sector);
+					}
 				}
+
+				// bottom neighbor
 				if (j < sectors.at(i).size() - 1) {
-					if (!sectors.at(i).at(j + 1)->IsSolid(glm::vec3(0.0f, -1.0f, 0.0f))) {
-						neighbors.push_back(std::make_pair(i, j + 1));
+					sector = sectors.at(i).at(j + 1);
+					if (!sector->IsSolid(UNIT_B)) {
+						neighbors.push_back(sector);
 						bl++;
 						br++;
-					}
-					else {
-						const TriangleSector *triangle = dynamic_cast<const TriangleSector *>(sectors.at(i).at(j + 1));
-						if (triangle) {
-							if (triangle->GetType() == TRIANGLE_BL) {
-								br++;
-								neighbors.push_back(std::make_pair(i, j + 1));
-							}
-							else if (triangle->GetType() == TRIANGLE_BR) {
-								bl++;
-								neighbors.push_back(std::make_pair(i, j + 1));
-							}
+						if (sector->GetType() == ONEWAY_DOWN) {
+							previousSectorMap[static_cast<const OneWaySector *>(sector)] = s;
 						}
 					}
+					else if (sector->GetType() == TRIANGLE_BL) {
+						br++;
+						neighbors.push_back(sector);
+					}
+					else if (sector->GetType() == TRIANGLE_BR) {
+						bl++;
+						neighbors.push_back(sector);
+					}
 				}
+
+				// right neighbor
 				if (i < sectors.size() - 1) {
-					if (!sectors.at(i + 1).at(j)->IsSolid(glm::vec3(1.0f, 0.0f, 0.0f))) {
-						neighbors.push_back(std::make_pair(i + 1, j));
+					sector = sectors.at(i + 1).at(j);
+					if (!sector->IsSolid(UNIT_R)) {
+						neighbors.push_back(sector);
 						br++;
 						tr++;
-					}
-					else {
-						const TriangleSector *triangle = dynamic_cast<const TriangleSector *>(sectors.at(i + 1).at(j));
-						if (triangle) {
-							if (triangle->GetType() == TRIANGLE_TR) {
-								br++;
-								neighbors.push_back(std::make_pair(i + 1, j));
-							}
-							else if (triangle->GetType() == TRIANGLE_BR) {
-								tr++;
-								neighbors.push_back(std::make_pair(i + 1, j));
-							}
+						if (sector->GetType() == ONEWAY_RIGHT) {
+							previousSectorMap[static_cast<const OneWaySector *>(sector)] = s;
 						}
 					}
+					else if (sector->GetType() == TRIANGLE_TR) {
+						br++;
+						neighbors.push_back(sector);
+					}
+					else if (sector->GetType() == TRIANGLE_BR) {
+						tr++;
+						neighbors.push_back(sector);
+					}
 				}
-				if (tr == 2 && !sectors.at(i + 1).at(j - 1)->IsSolid(glm::vec3(1.0f, -1.0f, 0.0f))) neighbors.push_back(std::make_pair(i + 1, j - 1));
-				if (tl == 2 && !sectors.at(i - 1).at(j - 1)->IsSolid(glm::vec3(-1.0f, -1.0f, 0.0f))) neighbors.push_back(std::make_pair(i - 1, j - 1));
-				if (br == 2 && !sectors.at(i + 1).at(j + 1)->IsSolid(glm::vec3(1.0f, 1.0f, 0.0f))) neighbors.push_back(std::make_pair(i + 1, j + 1));
-				if (bl == 2 && !sectors.at(i - 1).at(j + 1)->IsSolid(glm::vec3(-1.0f, 1.0f, 0.0f))) neighbors.push_back(std::make_pair(i - 1, j + 1));
-				neighborMap[std::make_pair(i, j)] = neighbors;
+
+				// diagonal neighbors
+				if (tr == 2) {
+					sector = sectors.at(i + 1).at(j - 1);
+					if (!sector->IsSolid(UNIT_TR)) {
+						neighbors.push_back(sector);
+					}
+				}
+				if (tl == 2) {
+					sector = sectors.at(i - 1).at(j - 1);
+					if (!sector->IsSolid(UNIT_TL)) {
+						neighbors.push_back(sector);
+					}
+				}
+				if (br == 2) {
+					sector = sectors.at(i + 1).at(j + 1);
+					if (!sector->IsSolid(UNIT_BR)) {
+						neighbors.push_back(sector);
+					}
+				}
+				if (bl == 2) {
+					sector = sectors.at(i - 1).at(j + 1);
+					if (!sector->IsSolid(UNIT_BL)) {
+						neighbors.push_back(sector);
+					}
+				}
 			}
 		}
 
-		CalculateDistances();
+		ai->Initialize(neighborMap, previousSectorMap);
 	}
 
 	~Grid() {
 		for (unsigned int i = 0; i < sectors.size(); i++) {
-			for (unsigned int j = 0; j < sectors[i].size(); j++) {
+			for (unsigned int j = 0; j < sectors.at(i).size(); j++) {
 				delete sectors.at(i).at(j);
 			}
 		}
@@ -501,16 +551,18 @@ public:
 	}
 	
 	glm::vec3 GetCollisionNormal(const glm::vec3 &location, const glm::vec3 &velocity, float radius) const {
-		glm::vec3 normal(0.0f);
-		const std::pair<int, int> p = GetColRow(location);
+		glm::vec3 normal = ZERO;
+		const pair<int, int> p = GetColRow(location);
 		const Sector *sector = GetSector(p.first, p.second);
-		if (!sector) return normal;
-		std::vector<const SolidSector *> collisionCandidates;
+		if (!sector) {
+			return normal;
+		}
+		vector<const SolidSector *> collisionCandidates;
 		AddCollisionCandidates(location, velocity, radius, sector, p, collisionCandidates);
-		for (std::vector<const SolidSector *>::const_iterator it = collisionCandidates.begin();
+		float minDistance = radius;
+		for (vector<const SolidSector *>::const_iterator it = collisionCandidates.begin();
 			it != collisionCandidates.end(); ++it) {
-			const std::vector<glm::vec3> &corners = (*it)->GetCorners();
-			float minDistance = radius;
+			const vector<glm::vec3> &corners = (*it)->GetCorners();
 
 			// Check distance to edges
 			for (unsigned int i = 0; i < corners.size(); i++) {
@@ -537,10 +589,16 @@ public:
 					}
 				}
 			}
+		}
 
-			if (normal == glm::vec3(0.0f)) {
+		// No edge collision, because they were too far away or sector was not feasible.
+		if (normal == ZERO) {
+			for (vector<const SolidSector *>::const_iterator it = collisionCandidates.begin();
+				it != collisionCandidates.end(); ++it) {
+				const vector<glm::vec3> &corners = (*it)->GetCorners();
+
 				// Check distance to corners
-				for (std::vector<glm::vec3>::const_iterator it2 = corners.begin(); it2 != corners.end(); ++it2) {
+				for (vector<glm::vec3>::const_iterator it2 = corners.begin(); it2 != corners.end(); ++it2) {
 					const glm::vec3 candidate = location - *it2;
 					const float distance = glm::length(candidate);
 					if (distance < minDistance) {
@@ -556,24 +614,38 @@ public:
 	glm::vec3 GetCollisionNormal(const Object *o) const {
 		return GetCollisionNormal(o->GetLocation(), o->GetVelocity(), o->GetRadius());
 	}
-private:
-	// Returns a pair (col, row) which corresponds to the given location
-	std::pair<int, int> GetColRow(const glm::vec3 &location) const {
-		float x = sectorSize / 2 + location.x;
-		float y = sectorSize / 2 - location.y;
-		int col = (int) (x / sectorSize);
-		int row = (int) (y / sectorSize);
-		return std::make_pair(col, row);
+
+	void Debug(const Object *o) const {
 	}
 
-	void AddCollisionCandidates(const glm::vec3 &location, const glm::vec3 &velocity, const float radius, const Sector *sector, const std::pair<int, int> &p, std::vector<const SolidSector *> &collisionCandidates) const {
+	const Sector * GetSector(const glm::vec3 &location) const {
+		const pair<int, int> p = GetColRow(location);
+		return GetSector(p.first, p.second);
+	}
+
+	float GetSectorSize() const {
+		return sectorSize;
+	}
+
+private:
+	// Returns a pair (col, row) which corresponds to the given location
+	pair<int, int> GetColRow(const glm::vec3 &location) const {
+		float x = halfSectorSize + location.x;
+		float y = halfSectorSize - location.y;
+		int col = (int) (x / sectorSize);
+		int row = (int) (y / sectorSize);
+		return make_pair(col, row);
+	}
+
+	void AddCollisionCandidates(const glm::vec3 &location, const glm::vec3 &velocity, const float radius,
+		const Sector *sector, const pair<int, int> &p, vector<const SolidSector *> &collisionCandidates) const {
 		const glm::vec3 diff = sector->GetLocation() - location;
 		int colDelta = 0;
 		int rowDelta = 0;
-		if (abs(diff.x) + radius > sectorSize * 0.5f) {
+		if (glm::abs(diff.x) + radius > halfSectorSize) {
 			colDelta = diff.x > 0 ? -1 : 1;
 		}
-		if (abs(diff.y) + radius > sectorSize * 0.5f) {
+		if (glm::abs(diff.y) + radius > halfSectorSize) {
 			rowDelta = diff.y > 0 ? 1 : -1;
 		}
 		if (sector->IsSolid(velocity)) {
@@ -599,47 +671,50 @@ private:
 		}
 	}
 
+	// Returns the sector from the given column and row.
+	// If given column and row are out of bounds, return 0 instead.
+	const Sector * GetSector(int col, int row) const {
+		if (col < 0 || col >= (int) sectors.size()) return 0;
+		if (row < 0 || row >= (int) sectors.at(col).size()) return 0;
+		return sectors.at(col).at(row);
+	}
+
+	vector<vector<const Sector *>> sectors;
+	const float sectorSize;
+	const float halfSectorSize;
+};
+
+class DummyAI : public AI {
 public:
-	void CalculateDistances() {
-		std::deque<std::pair<int, int>> worklist;
-		for (unsigned int i = 0; i < sectors.size(); i++) {
-			for (unsigned int j = 0; j < sectors.at(i).size(); j++) {
-				const Sector *sector = sectors.at(i).at(j);
-				const OneWaySector *ows = dynamic_cast<const OneWaySector *>(sector);
-				if (ows) {
-					distanceMap[ows] = 0;
-					if (ows->GetType() == ONEWAY_RIGHT) {
-						worklist.push_back(std::make_pair(i - 1, j));
-					}
-					else if (ows->GetType() == ONEWAY_LEFT) {
-						worklist.push_back(std::make_pair(i + 1, j));
-					}
-					else if (ows->GetType() == ONEWAY_UP) {
-						worklist.push_back(std::make_pair(i, j + 1));
-					}
-					else if (ows->GetType() == ONEWAY_DOWN) {
-						worklist.push_back(std::make_pair(i, j - 1));
-					}
-				}
-			}
+	DummyAI(const Grid &g) : grid(g) { }
+
+	// Calculates shortest distances from all accessible sectors to the closest
+	// OneWaySector and stores the result to a map
+	void Initialize(const map<const Sector *, vector<const Sector *>> &neighborMap,
+		const map<const OneWaySector *, const Sector *> &previousSectorMap) {
+
+		deque<const Sector *> worklist;
+		for (map<const OneWaySector *, const Sector *>::const_iterator it = previousSectorMap.begin();
+		it != previousSectorMap.end(); ++it) {
+			distanceMap[it->first] = 0;
+			worklist.push_back(it->second);
 		}
 
-		int d = 1;
+		// Distance from OneWaySector
+		int currentDistance = 1;
+
 		// Separator for increasing distance
-		static std::pair<int, int> sep = std::make_pair(-1, -1);
+		static const Sector * const sep = 0;
 		worklist.push_back(sep);
+
 		while (!worklist.empty()) {
-			const std::pair<int, int> p = worklist.front();
+			const Sector *sector = worklist.front();
 			worklist.pop_front();
-			if (p == sep) {
-				d++;
+			if (sector == sep) {
+				currentDistance++;
 				if (!worklist.empty()) {
 					worklist.push_back(sep);
 				}
-				continue;
-			}
-			const Sector *sector = GetSector(p.first, p.second);
-			if (!sector) {
 				continue;
 			}
 			if (distanceMap.find(sector) != distanceMap.end()) {
@@ -647,33 +722,32 @@ public:
 				continue;
 			}
 			else {
-				distanceMap[sector] = d;
-				const std::map<std::pair<int, int>, std::vector<std::pair<int, int>>>::const_iterator it = neighborMap.find(p);
+				distanceMap[sector] = currentDistance;
+				const map<const Sector *, vector<const Sector *>>::const_iterator it =
+					neighborMap.find(sector);
 				if (it != neighborMap.end()) {
-					const std::vector<std::pair<int, int>> &neighbors = it->second;
-					for (std::vector<std::pair<int, int>>::const_iterator vit = neighbors.begin();
-						vit != neighbors.end(); ++vit) {
+					const vector<const Sector *> &neighbors = it->second;
+					for (vector<const Sector *>::const_iterator vit = neighbors.begin();
+					vit != neighbors.end(); ++vit) {
 						worklist.push_back(*vit);
 					}
 				}
 			}
 		}
-		//printf("Init done\n");
 	}
 
-	void Debug(const Object *o) const {
-		std::pair<int, int> p = GetColRow(o->GetLocation());
-		const Sector *s = GetSector(p.first, p.second);
-		if (s && distanceMap.find(s) != distanceMap.end()) {
-			//printf("Distance: %d Velocity: %f\n", distanceMap.find(s)->second, length(o->GetVelocity()));
+	void Accelerate(float deltaTime) {
+		for (set<Object *>::const_iterator it = objects.begin(); it != objects.end(); ++it) {
+			const glm::vec3 direction = GetAcceleration(*it, deltaTime);
+			(*it)->Accelerate(deltaTime, direction);
 		}
 	}
 
-	std::map<const Object *, glm::vec3> locMap;
-	std::map<const Object *, glm::vec3> dirMap;
-	std::map<const Object *, float> timeMap;
+private:
 
 	glm::vec3 GetAcceleration(const Object *o, float deltaTime) {
+
+		// Random movement is active
 		if (dirMap.find(o) != dirMap.end()) {
 			float time = timeMap[o];
 			glm::vec3 dir = dirMap.find(o)->second;
@@ -687,54 +761,42 @@ public:
 			}
 			return dir;
 		}
+
 		float a = o->GetAcceleration();
 		const glm::vec3 &v = o->GetVelocity();
 		glm::vec3 pos0 = o->GetLocation();
 		glm::vec3 pos1;
 		float time = glm::max(0.5f, 4.0f * glm::max(v.x, v.y) / a);
-		glm::vec3 directions[8];
+		static glm::vec3 directions[] =
+			{ UNIT_T, UNIT_B, UNIT_L, UNIT_R, UNIT_TL, UNIT_TR, UNIT_BL, UNIT_BR };
 		int score[8];
-		directions[0] = glm::vec3(1.0f, 0.0f, 0.0f);
-		directions[1] = glm::vec3(1.0f, 1.0f, 0.0f);
-		directions[2] = glm::vec3(1.0f, -1.0f, 0.0f);
-		directions[3] = glm::vec3(0.0f, 1.0f, 0.0f);
-		directions[4] = glm::vec3(0.0f, -1.0f, 0.0f);
-		directions[5] = glm::vec3(-1.0f, 0.0f, 0.0f);
-		directions[6] = glm::vec3(-1.0f, 1.0f, 0.0f);
-		directions[7] = glm::vec3(-1.0f, -1.0f, 0.0f);
-		int sectorsInTime = time * glm::length(o->GetVelocity()) / sectorSize;
+		int sectorsInTime = (int) (time * glm::length(o->GetVelocity()) / grid.GetSectorSize());
 		int intervals = glm::max(20, sectorsInTime * 4);
-		//printf("Intervals: %d Time: %f\n", intervals, time);
 		float intervalTime = time / intervals;
 		float intervalTimeSq = 0.5f * a * intervalTime * intervalTime;
-		std::pair<int, int> p0 = GetColRow(pos0);
-		const Sector *s0 = GetSector(p0.first, p0.second);
+		const Sector *s0 = grid.GetSector(pos0);
 		const OneWaySector *ows = dynamic_cast<const OneWaySector *>(s0);
 		if (ows) {
-			if (ows->GetType() == ONEWAY_RIGHT) return directions[0];
-			if (ows->GetType() == ONEWAY_LEFT) return directions[5];
-			if (ows->GetType() == ONEWAY_UP) return directions[3];
-			if (ows->GetType() == ONEWAY_DOWN) return directions[4];
+			if (ows->GetType() == ONEWAY_RIGHT) return UNIT_R;
+			if (ows->GetType() == ONEWAY_LEFT) return UNIT_L;
+			if (ows->GetType() == ONEWAY_UP) return UNIT_T;
+			if (ows->GetType() == ONEWAY_DOWN) return UNIT_B;
 		}
-		int distance = -10;
-		if (s0 && distanceMap.find(s0) != distanceMap.end()) distance = distanceMap.find(s0)->second;
+		int distance = GetDistance(s0);
 		for (int i = 0; i < 8; i++) {
 			score[i] = 0;
 			const glm::vec3 &direction = directions[i];
 			for (int j = 0; j < intervals; j++) {
 				pos1 = pos0 + intervalTime * j * o->GetVelocity() + intervalTimeSq * j * j * direction;
-				std::pair<int, int> p = GetColRow(pos1);
-				const Sector *s = GetSector(p.first, p.second);
+				const Sector *s = grid.GetSector(pos1);
 				int newDistance = distance;
 				glm::vec3 normal(0.0f);
 				const glm::vec3 velocity = o->GetVelocity() + j * intervalTime * a * direction;
-				if (s) {
-					std::map<const Sector *, int>::const_iterator it = distanceMap.find(s);
-					if (it != distanceMap.end()) {
-						normal = GetCollisionNormal(pos1, velocity, o->GetRadius());
-						if (normal == glm::vec3(0.0f)) {
-							newDistance = it->second;
-						}
+				int dist = GetDistance(s);
+				if (dist >= 0) {
+					normal = grid.GetCollisionNormal(pos1, velocity, o->GetRadius());
+					if (normal == glm::vec3(0.0f)) {
+						newDistance = dist;
 					}
 				}
 				if (normal == glm::vec3(0.0f)) {
@@ -754,7 +816,7 @@ public:
 		}
 		int highScore = -1000;
 		glm::vec3 result(0.0f);
-		std::vector<int> best;
+		vector<int> best;
 		for (int i = 0; i < 8; i++) {
 			if (score[i] > highScore) {
 				highScore = score[i];
@@ -782,50 +844,49 @@ public:
 		return result;
 	}
 
-private:
-	// Returns the sector from the given column and row.
-	// If given column and row are out of bounds, return 0 instead.
-	const Sector * GetSector(int col, int row) const {
-		if (col < 0 || col >= (int) sectors.size()) return 0;
-		if (row < 0 || row >= (int) sectors.at(col).size()) return 0;
-		return sectors.at(col).at(row);
+	int GetDistance(const Sector *sector) const {
+		int result = -10;
+		map<const Sector *, int>::const_iterator it = distanceMap.find(sector);
+		if (it != distanceMap.end()) {
+			result = it->second;
+		}
+		return result;
 	}
 
-	std::map<const Sector *, int> distanceMap;
-	std::map<std::pair<int, int>, std::vector<std::pair<int, int>>> neighborMap;
-	std::vector<std::vector<const Sector *>> sectors;
-	const float sectorSize;
+	map<const Sector *, int> distanceMap;
+	const Grid &grid;
+
+	map<const Object *, glm::vec3> locMap;
+	map<const Object *, glm::vec3> dirMap;
+	map<const Object *, float> timeMap;
 };
 
 class Game {
 public:
-	Game(const std::vector<std::string> &data) : g(SECTOR_SIZE) {
-		g.Initialize(data, objects);
-		for (std::vector<Object *>::const_iterator it = objects.begin(); it != objects.end(); ++it) {
-			if (!(*it)->GetAI()) {
-				human = *it;
-				break;
-			}
-		}
+	Game(const vector<string> &data) : g(SECTOR_SIZE) {
+		ai = new DummyAI(g);
+		g.Initialize(data, objects, ai);
+		human = ai->GetHuman(objects);
 	}
 
 	~Game() {
-		for (std::vector<Object *>::const_iterator it = objects.begin(); it != objects.end(); ++it) {
+		for (vector<Object *>::const_iterator it = objects.begin(); it != objects.end(); ++it) {
 			delete *it;
 		}
+		delete ai;
 	}
 
 	void Run() {
 		float deltaTime = GetDeltaTime();
 
-		for (std::vector<Object *>::const_iterator it = objects.begin(); it != objects.end(); ++it) {
+		for (vector<Object *>::const_iterator it = objects.begin(); it != objects.end(); ++it) {
 			(*it)->Move(deltaTime);
 		}
 
 		// First check all collisions to solid grid elements
-		for (std::vector<Object *>::const_iterator it = objects.begin(); it != objects.end(); ++it) {
+		for (vector<Object *>::const_iterator it = objects.begin(); it != objects.end(); ++it) {
 			glm::vec3 n = g.GetCollisionNormal(*it);
-			if (n != glm::vec3(0.0f)) {
+			if (n != ZERO) {
 				// Collision
 				(*it)->ResolveCollision(n);
 			}
@@ -836,8 +897,8 @@ public:
 		bool collision;
 		do {
 			collision = false;
-			for (std::vector<Object *>::const_iterator it = objects.begin(); it != objects.end(); ++it) {
-				for (std::vector<Object *>::const_iterator it2 = it + 1; it2 != objects.end(); ++it2) {
+			for (vector<Object *>::const_iterator it = objects.begin(); it != objects.end(); ++it) {
+				for (vector<Object *>::const_iterator it2 = it + 1; it2 != objects.end(); ++it2) {
 					Object *o1 = *it;
 					Object *o2 = *it2;
 					if (o1->Collides(o2)) {
@@ -846,7 +907,9 @@ public:
 						break;
 					}
 				}
-				if (collision) break;
+				if (collision) {
+					break;
+				}
 			}
 		} while (collision);
 
@@ -854,25 +917,19 @@ public:
 
 		g.Debug(human);
 
-		for (std::vector<Object *>::const_iterator it = objects.begin(); it != objects.end(); ++it) {
-			if (*it == human) {
-				continue;
-			}
-			glm::vec3 direction = g.GetAcceleration(*it, deltaTime);
-			(*it)->Accelerate(deltaTime, direction);
-		}
+		ai->Accelerate(deltaTime);
 	}
 
 	void Draw(GLuint id) const {
 		glm::mat4 camera = glm::translate(cameraOffset - human->GetLocation());
 		g.Draw(id, camera);
-		for (std::vector<Object *>::const_iterator it = objects.begin(); it != objects.end(); ++it) {
+		for (vector<Object *>::const_iterator it = objects.begin(); it != objects.end(); ++it) {
 			(*it)->Draw(id, camera);
 		}
 	}
 private:
 	void GetKeyboardInputs(Object *o, float deltaTime) {
-		glm::vec3 direction(0.0f, 0.0f, 0.0f);
+		glm::vec3 direction = ZERO;
 		if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
 			direction.y += 1.0f;
 		}
@@ -904,19 +961,18 @@ private:
 	}
 
 	Grid g;
+	AI *ai;
 	Object *human;
-	std::vector<Object *> objects;
+	vector<Object *> objects;
 	glm::vec3 cameraOffset;
-	std::map<const Object *, std::set<const Sector *>> cache;
-	std::map<const Object *, double> cacheTimer;
 };
 
 int main( void )
 {
 	// Initialise GLFW
-	if( !glfwInit() )
+	if(!glfwInit())
 	{
-		fprintf( stderr, "Failed to initialize GLFW\n" );
+		fprintf(stderr, "Failed to initialize GLFW\n");
 		getchar();
 		return -1;
 	}
@@ -929,9 +985,9 @@ int main( void )
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
 	// Open a window and create its OpenGL context
-	window = glfwCreateWindow( 700, 700, "Playground", NULL, NULL);
-	if( window == NULL ){
-		fprintf( stderr, "Failed to open GLFW window. If you have an Intel GPU, they are not 3.3 compatible. Try the 2.1 version of the tutorials.\n" );
+	window = glfwCreateWindow(700, 700, "Solar Dash", NULL, NULL);
+	if(window == NULL){
+		fprintf(stderr, "Failed to open GLFW window.\n");
 		getchar();
 		glfwTerminate();
 		return -1;
@@ -946,10 +1002,8 @@ int main( void )
 		return -1;
 	}
 
-	// Ensure we can capture the escape key being pressed below
 	glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
 
-	// Dark blue background
 	glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
 	GLuint VertexArrayID;
@@ -961,35 +1015,27 @@ int main( void )
 	// Get a handle for our "MVP" uniform
 	GLuint MatrixID = glGetUniformLocation(programID, "MVP");
 
-	std::vector<std::string> data = ReadGridFromFile("viljo.txt");
+	vector<string> data = ReadGridFromFile("map.txt");
 	Game game(data);
 
-	srand(time(NULL));
+	srand((unsigned int) time(NULL));
 
 	do {
-		// Clear the screen
 		glClear(GL_COLOR_BUFFER_BIT);
-		// Use our shader
 		glUseProgram(programID);
 
 		game.Run();
 		game.Draw(MatrixID);
 
-		// Swap buffers
 		glfwSwapBuffers(window);
 		glfwPollEvents();
 
-	} // Check if the ESC key was pressed or the window was closed
-	while( glfwGetKey(window, GLFW_KEY_ESCAPE ) != GLFW_PRESS &&
-		   glfwWindowShouldClose(window) == 0 );
+	}
+	while(glfwGetKey(window, GLFW_KEY_ESCAPE) != GLFW_PRESS &&
+		  glfwWindowShouldClose(window) == 0);
 
-	// Cleanup VBO
 	glDeleteProgram(programID);
 	glDeleteVertexArrays(1, &VertexArrayID);
-
-	// Close OpenGL window and terminate GLFW
 	glfwTerminate();
-
 	return 0;
 }
-

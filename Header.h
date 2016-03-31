@@ -106,12 +106,12 @@ ObjectData CreateObjectData(int id) {
 GLObjectData CreateSquareData(float size, const glm::vec3 &color) {
 	GLObjectData data;
 	data.vertices.reserve(6);
-	data.vertices.push_back(UNIT_TL * size * 0.5f);
-	data.vertices.push_back(UNIT_TR * size * 0.5f);
-	data.vertices.push_back(UNIT_BR * size * 0.5f);
-	data.vertices.push_back(UNIT_TL * size * 0.5f);
-	data.vertices.push_back(UNIT_BL * size * 0.5f);
-	data.vertices.push_back(UNIT_BR * size * 0.5f);
+	data.vertices.push_back(UNIT_TL * size);
+	data.vertices.push_back(UNIT_TR * size);
+	data.vertices.push_back(UNIT_BR * size);
+	data.vertices.push_back(UNIT_TL * size);
+	data.vertices.push_back(UNIT_BL * size);
+	data.vertices.push_back(UNIT_BR * size);
 	data.colors.push_back(color);
 	data.colors.push_back(color);
 	data.colors.push_back(color);
@@ -125,13 +125,13 @@ GLObjectData CreateTriangleData(float size, const glm::vec3 &color, SectorType t
 	GLObjectData data;
 	data.vertices.reserve(3);
 	if (type != TRIANGLE_BR)
-		data.vertices.push_back(UNIT_TL * size * 0.5f);
+		data.vertices.push_back(UNIT_TL * size);
 	if (type != TRIANGLE_BL)
-		data.vertices.push_back(UNIT_TR * size * 0.5f);
+		data.vertices.push_back(UNIT_TR * size);
 	if (type != TRIANGLE_TL)
-		data.vertices.push_back(UNIT_BR * size * 0.5f);
+		data.vertices.push_back(UNIT_BR * size);
 	if (type != TRIANGLE_TR)
-		data.vertices.push_back(UNIT_BL * size * 0.5f);
+		data.vertices.push_back(UNIT_BL * size);
 	data.colors.push_back(color);
 	data.colors.push_back(color);
 	data.colors.push_back(color);
