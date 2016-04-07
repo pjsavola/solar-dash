@@ -280,20 +280,33 @@ private:
 	const SectorType type;
 };
 
+class ObjectAI {
+public:
+	virtual ~ObjectAI() { }
+	virtual void Accelerate(float deltaTime) = 0;
+};
+
 class AI {
 public:
+
+	virtual ~AI() {
+		for (map<const Object *, ObjectAI *>::const_iterator it = objects.begin();
+			it != objects.end(); ++it) {
+			delete it->second;
+		}
+	}
 
 	virtual void Initialize(const map<const Sector *, vector<const Sector *>> &neighborMap,
 		const map<const OneWaySector *, const Sector *> &previousSectorMap) { }
 
-	virtual int GetDistance(const Sector *sector) const {
-		return 0;
-	}
+	virtual void AddObject(Object *o) = 0;
 
-	virtual void Accelerate(float deltaTime) { }
+	virtual int GetDistance(const Sector *s) const = 0;
 
-	void AddObject(Object *o) {
-		objects.insert(o);
+	void Accelerate(float deltaTime) {
+		for (map<const Object *, ObjectAI *>::const_iterator it = objects.begin(); it != objects.end(); ++it) {
+			it->second->Accelerate(deltaTime);
+		}
 	}
 
 	Object * GetHuman(const vector<Object *> &allObjects) const {
@@ -304,8 +317,16 @@ public:
 		}
 		return 0;
 	}
+
 protected:
-	set<Object *> objects;
+
+	void RegisterAI(const Object *o, ObjectAI *ai) {
+		objects[o] = ai;
+	}
+
+private:
+
+	map<const Object *, ObjectAI *> objects;
 };
 
 const Sector* CreateSector(char c, vector<Object *> &objects,
@@ -684,6 +705,140 @@ private:
 	const float halfSectorSize;
 };
 
+// Object specific AI
+class DummyObjectAI : public ObjectAI {
+public:
+	DummyObjectAI(Object *o, const AI *ai, const Grid &grid) : o(o), ai(ai), grid(grid) {
+		previousLocation = ZERO;
+		randomMovementTimeLeft = 0.0f;
+	}
+
+	void Accelerate(float deltaTime) {
+		o->Accelerate(deltaTime, GetAcceleration(deltaTime));
+	}
+
+private:
+
+	// AI parameters
+	float minLookaheadTime = 0.5f;
+	float lookaheadMultiplier = 4.0f;
+	int minIntervalCount = 20;
+	int intervalMultiplier = 4;
+	int unknownDistance = -10;
+	int oneWaySectorBonus = 10; // additional distance value of one way sectors
+	float lowSpeedThreshold = 0.2f; // min speed, where penalty for collisions is still applied
+	int collisionMultiplier = 10; // penalty for collisions, big is more
+	int defaultHighScore = -1000;
+	float randomMovementTime = 0.05f;
+
+	glm::vec3 GetAcceleration(float deltaTime) {
+
+		// Check if random movement is active
+		if (randomMovementTimeLeft > 0.0f) {
+			randomMovementTimeLeft -= deltaTime;
+			return randomDirection;
+		}
+
+		float a = o->GetAcceleration();
+		const glm::vec3 &v = o->GetVelocity();
+		const glm::vec3 pos0 = o->GetLocation();
+		glm::vec3 pos1;
+		float time = glm::max(minLookaheadTime, lookaheadMultiplier * glm::max(v.x, v.y) / a);
+		static const int DIRECTIONS = 8;
+		static glm::vec3 directions[] =
+			{ UNIT_T, UNIT_B, UNIT_L, UNIT_R, UNIT_TL, UNIT_TR, UNIT_BL, UNIT_BR };
+		int score[DIRECTIONS];
+		int sectorsInTime = (int) (time * glm::length(o->GetVelocity()) / grid.GetSectorSize());
+		int intervals = glm::max(minIntervalCount, sectorsInTime * intervalMultiplier);
+		float intervalTime = time / intervals;
+		float intervalTimeSq = 0.5f * a * intervalTime * intervalTime;
+
+		const Sector *s0 = grid.GetSector(pos0);
+		switch (s0->GetType()) {
+		case ONEWAY_RIGHT: return UNIT_R;
+		case ONEWAY_LEFT: return UNIT_L;
+		case ONEWAY_UP: return UNIT_T;
+		case ONEWAY_DOWN: return UNIT_B;
+		}
+
+		int distance = ai->GetDistance(s0);
+		distance = distance < 0 ? unknownDistance : distance;
+
+		// Calculate a score for acceleration to each possible direction.
+		for (int i = 0; i < DIRECTIONS; i++) {
+			score[i] = 0;
+			const glm::vec3 &direction = directions[i];
+			for (int j = 0; j < intervals; j++) {
+				pos1 = pos0 + intervalTime * j * o->GetVelocity() + intervalTimeSq * j * j * direction;
+				const Sector *s = grid.GetSector(pos1);
+				int newDistance = distance;
+				glm::vec3 normal = ZERO;
+				const glm::vec3 velocity = o->GetVelocity() + j * intervalTime * a * direction;
+				int dist = ai->GetDistance(s);
+				if (dist >= 0) {
+					normal = grid.GetCollisionNormal(pos1, velocity, o->GetRadius());
+					if (normal == ZERO) {
+						newDistance = dist;
+					}
+				}
+				if (normal == ZERO) {
+					score[i] += distance - newDistance;
+					if (dynamic_cast<const OneWaySector *>(s)) {
+						score[i] += oneWaySectorBonus;
+						break;
+					}
+				}
+				else {
+					// If object moves very slowly, do not penalize for collisions.
+					// Otherwise it's difficult to move in narrow maze.
+					if (lowSpeedThreshold > glm::length(o->GetVelocity())) {
+						score[i] += (int) (glm::dot(velocity, normal) * collisionMultiplier);
+					}
+					break;
+				}
+			}
+		}
+
+		// Randomize direction from those which have the best score
+		int highScore = defaultHighScore;
+		glm::vec3 result = ZERO;
+		vector<int> best;
+		for (int i = 0; i < DIRECTIONS; i++) {
+			if (score[i] > highScore) {
+				highScore = score[i];
+				best.clear();
+				best.push_back(i);
+			}
+			else if (score[i] == highScore) {
+				best.push_back(i);
+			}
+		}
+		if (!best.empty()) {
+			int dir = rand() % best.size();
+			result = directions[best.at(dir)];
+		}
+
+		// If object has not moved at all, randomize acceleration
+		if (previousLocation == o->GetLocation()) {
+			randomDirection = directions[rand() % DIRECTIONS];
+			randomMovementTimeLeft = randomMovementTime;
+			result = randomDirection;
+		}
+
+		previousLocation = o->GetLocation();
+		return result;
+	}
+
+	const AI * const ai;
+	Object * const o;
+	const Grid &grid;
+
+	glm::vec3 previousLocation;
+	glm::vec3 randomDirection;
+	float randomMovementTimeLeft;
+};
+
+// Master AI
 class DummyAI : public AI {
 public:
 	DummyAI(const Grid &g) : grid(g) { }
@@ -736,116 +891,12 @@ public:
 		}
 	}
 
-	void Accelerate(float deltaTime) {
-		for (set<Object *>::const_iterator it = objects.begin(); it != objects.end(); ++it) {
-			const glm::vec3 direction = GetAcceleration(*it, deltaTime);
-			(*it)->Accelerate(deltaTime, direction);
-		}
-	}
-
-private:
-
-	glm::vec3 GetAcceleration(const Object *o, float deltaTime) {
-
-		// Random movement is active
-		if (dirMap.find(o) != dirMap.end()) {
-			float time = timeMap[o];
-			glm::vec3 dir = dirMap.find(o)->second;
-			time -= deltaTime;
-			if (time < 0) {
-				timeMap.clear();
-				dirMap.clear();
-			}
-			else {
-				timeMap[o] = time;
-			}
-			return dir;
-		}
-
-		float a = o->GetAcceleration();
-		const glm::vec3 &v = o->GetVelocity();
-		glm::vec3 pos0 = o->GetLocation();
-		glm::vec3 pos1;
-		float time = glm::max(0.5f, 4.0f * glm::max(v.x, v.y) / a);
-		static glm::vec3 directions[] =
-			{ UNIT_T, UNIT_B, UNIT_L, UNIT_R, UNIT_TL, UNIT_TR, UNIT_BL, UNIT_BR };
-		int score[8];
-		int sectorsInTime = (int) (time * glm::length(o->GetVelocity()) / grid.GetSectorSize());
-		int intervals = glm::max(20, sectorsInTime * 4);
-		float intervalTime = time / intervals;
-		float intervalTimeSq = 0.5f * a * intervalTime * intervalTime;
-		const Sector *s0 = grid.GetSector(pos0);
-		const OneWaySector *ows = dynamic_cast<const OneWaySector *>(s0);
-		if (ows) {
-			if (ows->GetType() == ONEWAY_RIGHT) return UNIT_R;
-			if (ows->GetType() == ONEWAY_LEFT) return UNIT_L;
-			if (ows->GetType() == ONEWAY_UP) return UNIT_T;
-			if (ows->GetType() == ONEWAY_DOWN) return UNIT_B;
-		}
-		int distance = GetDistance(s0);
-		for (int i = 0; i < 8; i++) {
-			score[i] = 0;
-			const glm::vec3 &direction = directions[i];
-			for (int j = 0; j < intervals; j++) {
-				pos1 = pos0 + intervalTime * j * o->GetVelocity() + intervalTimeSq * j * j * direction;
-				const Sector *s = grid.GetSector(pos1);
-				int newDistance = distance;
-				glm::vec3 normal(0.0f);
-				const glm::vec3 velocity = o->GetVelocity() + j * intervalTime * a * direction;
-				int dist = GetDistance(s);
-				if (dist >= 0) {
-					normal = grid.GetCollisionNormal(pos1, velocity, o->GetRadius());
-					if (normal == glm::vec3(0.0f)) {
-						newDistance = dist;
-					}
-				}
-				if (normal == glm::vec3(0.0f)) {
-					score[i] += distance - newDistance;
-					if (dynamic_cast<const OneWaySector *>(s)) {
-						score[i] += 10;
-						break;
-					}
-				}
-				else {
-					if (0.2f > glm::length(o->GetVelocity())) {
-						score[i] += (int)(glm::dot(velocity, normal) * 10);
-					}
-					break;
-				}
-			}
-		}
-		int highScore = -1000;
-		glm::vec3 result(0.0f);
-		vector<int> best;
-		for (int i = 0; i < 8; i++) {
-			if (score[i] > highScore) {
-				highScore = score[i];
-				best.clear();
-				best.push_back(i);
-			}
-			else if (score[i] == highScore) {
-				best.push_back(i);
-			}
-		}
-		if (!best.empty()) {
-			int dir = rand() % best.size();
-			result = directions[best.at(dir)];
-		}
-
-		// If object has not moved at all, randomize acceleration
-		if (locMap.find(o) != locMap.end()) {
-			if (locMap.find(o)->second == o->GetLocation()) {
-				result = directions[rand() % 8];
-				dirMap[o] = result;
-				timeMap[o] = 0.05f;
-			}
-		}
-		locMap[o] = o->GetLocation();
-		return result;
+	void AddObject(Object *o) {
+		RegisterAI(o, new DummyObjectAI(o, this, grid));
 	}
 
 	int GetDistance(const Sector *sector) const {
-		int result = -10;
+		int result = -1;
 		map<const Sector *, int>::const_iterator it = distanceMap.find(sector);
 		if (it != distanceMap.end()) {
 			result = it->second;
@@ -853,12 +904,10 @@ private:
 		return result;
 	}
 
+private:
+
 	map<const Sector *, int> distanceMap;
 	const Grid &grid;
-
-	map<const Object *, glm::vec3> locMap;
-	map<const Object *, glm::vec3> dirMap;
-	map<const Object *, float> timeMap;
 };
 
 class Game {
@@ -878,8 +927,20 @@ public:
 
 	void Run() {
 		float deltaTime = GetDeltaTime();
+		if (deltaTime > 0.4f) {
+			// Huge lag for some reason
+			return;
+		}
+
+		set<const Object *> toNewLap;
 
 		for (vector<Object *>::const_iterator it = objects.begin(); it != objects.end(); ++it) {
+			const Sector *s = g.GetSector((*it)->GetLocation());
+			if (s && dynamic_cast<const OneWaySector *>(s)) {
+				//glm::vec3 loc = (*it)->GetLocation();
+				//printf("%f,%f\n", loc.x, loc.y);
+				toNewLap.insert(*it);
+			}
 			(*it)->Move(deltaTime);
 		}
 
@@ -913,11 +974,22 @@ public:
 			}
 		} while (collision);
 
+		// Check if any of the objects which are about to start a new lap actually do it
+		for (set<const Object *>::const_iterator it = toNewLap.begin(); it != toNewLap.end(); ++it) {
+			const Sector *s = g.GetSector((*it)->GetLocation());
+			if (s && !dynamic_cast<const OneWaySector *>(s)) {
+				lapTimes[*it].push_back(float(glfwGetTime() - initialTime));
+				printf("%f\n", lapTimes[*it].back());
+			}
+		}
+
 		GetKeyboardInputs(human, deltaTime);
 
 		g.Debug(human);
 
-		ai->Accelerate(deltaTime);
+		if (running) {
+			ai->Accelerate(deltaTime);
+		}
 	}
 
 	void Draw(GLuint id) const {
@@ -945,6 +1017,13 @@ private:
 		cameraOffset -= deltaTime * direction * 0.3f;
 		cameraOffset *= (1.0f - deltaTime);
 		o->Accelerate(deltaTime, direction);
+
+		if (!running) {
+			running = direction != ZERO;
+			if (running) {
+				initialTime = glfwGetTime();
+			}
+		}
 	}
 
 	float GetDeltaTime() {
@@ -964,7 +1043,11 @@ private:
 	AI *ai;
 	Object *human;
 	vector<Object *> objects;
+	map<const Object *, vector<float>> lapTimes;
+	map<const Object *, int> deathDistance;
 	glm::vec3 cameraOffset;
+	bool running = false;
+	double initialTime;
 };
 
 int main( void )
