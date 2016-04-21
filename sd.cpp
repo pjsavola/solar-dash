@@ -151,8 +151,8 @@ protected:
 
 class SquareSector : public SolidSector {
 public:
-    SquareSector(const glm::vec3 &location, float size, const glm::vec3 &color) :
-        SolidSector(location, CreateSquareData(size, color)) {
+    SquareSector(const glm::vec3 &location, float size, const glm::vec3 &color, SectorType type) :
+        SolidSector(location, CreateSquareData(size, color, type)) {
         corners.reserve(4);
         corners.push_back(location + UNIT_TL * size);
         corners.push_back(location + UNIT_TR * size);
@@ -175,12 +175,8 @@ private:
 class OneWaySector : public SquareSector {
 public:
     OneWaySector(const glm::vec3 &location, float size, const glm::vec3 &color, const glm::vec3 &way) :
-        SquareSector(location, size, color), way(way) {
-        if (way == UNIT_T) type = ONEWAY_UP;
-        else if (way == UNIT_B) type = ONEWAY_DOWN;
-        else if (way == UNIT_L) type = ONEWAY_LEFT;
-        else if (way == UNIT_R) type = ONEWAY_RIGHT;
-        else assert(false);
+        SquareSector(location, size, color, GetType(way)),
+        way(way), type(GetType(way)) {
     }
 
     bool IsSolid(const glm::vec3 &velocity) const {
@@ -192,8 +188,16 @@ public:
     }
 
 private:
+    static SectorType GetType(const glm::vec3 &way) {
+        if (way == UNIT_T) return ONEWAY_UP;
+        else if (way == UNIT_B) return ONEWAY_DOWN;
+        else if (way == UNIT_L) return ONEWAY_LEFT;
+        else if (way == UNIT_R) return ONEWAY_RIGHT;
+        return SQUARE;
+    }
+
     const glm::vec3 way;
-    SectorType type;
+    const SectorType type;
 };
 
 class TriangleSector : public SolidSector {
@@ -284,7 +288,7 @@ const Sector* CreateSector(char c, vector<Object *> &objects,
     const Sector *sector = 0;
     switch (c) {
     case '#':
-        sector = new SquareSector(location, halfSectorSize, color);
+        sector = new SquareSector(location, halfSectorSize, color, SQUARE);
         break;
     case 'A':
         sector = new TriangleSector(location, halfSectorSize, color, TRIANGLE_TL);
@@ -299,16 +303,16 @@ const Sector* CreateSector(char c, vector<Object *> &objects,
         sector = new TriangleSector(location, halfSectorSize, color, TRIANGLE_BR);
         break;
     case '>':
-        sector = new OneWaySector(location, halfSectorSize, color * 0.2f, UNIT_R);
+        sector = new OneWaySector(location, halfSectorSize, color * 0.5f, UNIT_R);
         break;
     case '<':
-        sector = new OneWaySector(location, halfSectorSize, color * 0.2f, UNIT_L);
+        sector = new OneWaySector(location, halfSectorSize, color * 0.5f, UNIT_L);
         break;
     case '^':
-        sector = new OneWaySector(location, halfSectorSize, color * 0.2f, UNIT_T);
+        sector = new OneWaySector(location, halfSectorSize, color * 0.5f, UNIT_T);
         break;
     case 'v':
-        sector = new OneWaySector(location, halfSectorSize, color * 0.2f, UNIT_B);
+        sector = new OneWaySector(location, halfSectorSize, color * 0.5f, UNIT_B);
         break;
     }
     if (!sector) {
@@ -1011,7 +1015,7 @@ int Program::Run() const {
         return -1;
     }
 
-    vector<string> data = ReadGridFromFile("map.txt");
+    vector<string> data = ReadGridFromFile("grid.txt");
     Game game(data, window);
 
     srand((unsigned int) time(NULL));
