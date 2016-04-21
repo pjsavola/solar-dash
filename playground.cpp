@@ -754,11 +754,16 @@ private:
 		float intervalTimeSq = 0.5f * a * intervalTime * intervalTime;
 
 		const Sector *s0 = grid.GetSector(pos0);
-		switch (s0->GetType()) {
-		case ONEWAY_RIGHT: return UNIT_R;
-		case ONEWAY_LEFT: return UNIT_L;
-		case ONEWAY_UP: return UNIT_T;
-		case ONEWAY_DOWN: return UNIT_B;
+		if (s0) {
+			switch (s0->GetType()) {
+			case ONEWAY_RIGHT: return UNIT_R;
+			case ONEWAY_LEFT: return UNIT_L;
+			case ONEWAY_UP: return UNIT_T;
+			case ONEWAY_DOWN: return UNIT_B;
+			}
+		}
+		else {
+			return ZERO;
 		}
 
 		int distance = ai->GetDistance(s0);
@@ -912,7 +917,7 @@ private:
 
 class Game {
 public:
-	Game(const vector<string> &data) : g(SECTOR_SIZE) {
+	Game(const vector<string> &data, unsigned int laps) : g(SECTOR_SIZE), laps(laps) {
 		ai = new DummyAI(g);
 		g.Initialize(data, objects, ai);
 		human = ai->GetHuman(objects);
@@ -925,11 +930,11 @@ public:
 		delete ai;
 	}
 
-	void Run() {
+	bool Run() {
 		float deltaTime = GetDeltaTime();
 		if (deltaTime > 0.4f) {
 			// Huge lag for some reason
-			return;
+			return true;
 		}
 
 		set<const Object *> toNewLap;
@@ -978,8 +983,11 @@ public:
 		for (set<const Object *>::const_iterator it = toNewLap.begin(); it != toNewLap.end(); ++it) {
 			const Sector *s = g.GetSector((*it)->GetLocation());
 			if (s && !dynamic_cast<const OneWaySector *>(s)) {
-				lapTimes[*it].push_back(float(glfwGetTime() - initialTime));
-				printf("%f\n", lapTimes[*it].back());
+				vector<float> &times = lapTimes[*it];
+				if (times.size() < laps) {
+					times.push_back(float(glfwGetTime() - initialTime));
+					printf("%f\n", times.back());
+				}
 			}
 		}
 
@@ -990,6 +998,7 @@ public:
 		if (running) {
 			ai->Accelerate(deltaTime);
 		}
+		return true;
 	}
 
 	void Draw(GLuint id) const {
@@ -1036,6 +1045,7 @@ private:
 
 		// For the next frame, the "last time" will be "now"
 		lastTime = currentTime;
+		printf("%f\n", deltaTime);
 		return deltaTime;
 	}
 
@@ -1047,7 +1057,9 @@ private:
 	map<const Object *, int> deathDistance;
 	glm::vec3 cameraOffset;
 	bool running = false;
+	bool over = false;
 	double initialTime;
+	const unsigned int laps;
 };
 
 int main( void )
@@ -1098,24 +1110,32 @@ int main( void )
 	// Get a handle for our "MVP" uniform
 	GLuint MatrixID = glGetUniformLocation(programID, "MVP");
 
-	vector<string> data = ReadGridFromFile("map.txt");
-	Game game(data);
-
 	srand((unsigned int) time(NULL));
+	map<string, unsigned int> season = ReadSeason("season1.ssn");
+	for (map<string, unsigned int>::const_iterator it = season.begin(); it != season.end(); ++it) {
+		vector<string> map = ReadGridFromFile(it->first.c_str());
+		const unsigned int laps = it->second;
+		Game game(map, laps);
+		do {
+			glClear(GL_COLOR_BUFFER_BIT);
+			glUseProgram(programID);
 
-	do {
-		glClear(GL_COLOR_BUFFER_BIT);
-		glUseProgram(programID);
+			if (!game.Run()) {
+				// over
+				break;
+			}
 
-		game.Run();
-		game.Draw(MatrixID);
+			game.Draw(MatrixID);
 
-		glfwSwapBuffers(window);
-		glfwPollEvents();
+			glfwSwapBuffers(window);
+			glfwPollEvents();
 
+			if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS ||
+				glfwWindowShouldClose(window) != 0) {
+				break;
+			}
+		} while (true);
 	}
-	while(glfwGetKey(window, GLFW_KEY_ESCAPE) != GLFW_PRESS &&
-		  glfwWindowShouldClose(window) == 0);
 
 	glDeleteProgram(programID);
 	glDeleteVertexArrays(1, &VertexArrayID);

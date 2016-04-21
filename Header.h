@@ -2,6 +2,7 @@
 #include <fstream>
 #include <string>
 #include <sstream>
+#include <map>
 #include <glm/glm.hpp>
 
 #define PI 3.14159265f
@@ -156,5 +157,24 @@ std::vector<std::string> ReadGridFromFile(const char *file) {
 	}
 	contents.push_back("  ");
 	return contents;
+}
+
+std::map<std::string, unsigned int> ReadSeason(const char *file) {
+	std::map<std::string, unsigned int> result;
+	std::string line;
+	std::ifstream stream(file);
+	if (stream.is_open()) {
+		while (getline(stream, line)) {
+			size_t pos = line.find(',');
+			if (pos != std::string::npos) {
+				std::stringstream ss;
+				ss << line.substr(pos + 1);
+				unsigned int laps;
+				ss >> laps;
+				result[line.substr(0, pos)] = laps;
+			}
+		}
+	}
+	return result;
 }
 
