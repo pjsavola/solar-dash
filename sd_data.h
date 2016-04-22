@@ -1,5 +1,6 @@
 #include <string>
 #include <vector>
+#include <deque>
 #include <fstream>
 #include <sstream>
 
@@ -164,4 +165,24 @@ std::vector<std::string> ReadGridFromFile(const char *file) {
     }
     contents.push_back("  ");
     return contents;
+}
+
+std::deque<std::pair<std::string, unsigned int> > ReadSeason(const char *file) {
+    std::deque<std::pair<std::string, unsigned int> > result;
+    std::string line;
+    std::ifstream stream(file);
+    if (stream.is_open()) {
+        while (getline(stream, line)) {
+            size_t pos = line.find(',');
+            if (pos != std::string::npos) {
+                std::stringstream ss;
+                ss << line.substr(pos + 1);
+                unsigned int laps;
+                ss >> laps;
+                result.push_back(std::make_pair(line.substr(0, pos), laps));
+                printf("%s -- %d\n", line.substr(0, pos).c_str(), laps);
+            }
+        }
+    }
+    return result;
 }
