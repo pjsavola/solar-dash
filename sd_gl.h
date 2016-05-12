@@ -32,7 +32,31 @@ private:
     GLuint colorbuffer;
 };
 
-class FontRenderer {
+class Shader {
+public:
+    Shader(bool blend) : blend(blend) { }
+    void Load(const char *vs_path, const char *fs_path);
+    void Unload() {
+        glDeleteProgram(id);
+    }
+    void Use() const {
+        glUseProgram(id);
+        if (blend) {
+            glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        } else {
+            glDisable(GL_BLEND);
+        }
+    }
+    GLuint Get(const char *name) const {
+        return glGetUniformLocation(id, name);
+    }
+private:
+    GLuint id;
+    bool blend;
+};
+
+class TextRenderer {
 private:
     struct Character {
         GLuint     TextureID;  // ID handle of the glyph texture
@@ -47,10 +71,11 @@ private:
     FT_Face face;
     GLuint VBO;
     GLuint VAO;
-    GLuint program;
+    Shader shader;
 
 public:
-    ~FontRenderer();
+    TextRenderer() : shader(true) { }
+    ~TextRenderer();
     void Init();
     void RenderText(std::string text, GLfloat x, GLfloat y, GLfloat scale, glm::vec3 color) const;
 };
@@ -64,10 +89,10 @@ public:
 private:
     GLFWwindow *window;
     GLuint VertexArrayID;
-    GLuint programID;
     GLuint MatrixID;
     bool initialized;
-    FontRenderer fontRenderer;
+    TextRenderer textRenderer;
+    Shader shader;
 };
 
 #endif // SD_GL_H

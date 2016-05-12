@@ -1062,7 +1062,7 @@ int Program::Run() const {
     }
 
     srand((unsigned int) time(NULL));
-    deque<pair<string, unsigned int> > season = ReadSeason("season1.ssn");
+    deque<pair<string, unsigned int> > season = ReadSeason("maps/season1.ssn");
     for (deque<pair<string, unsigned int> >::const_iterator it =
              season.begin(); it != season.end(); ++it) {
         vector<string> map = ReadGridFromFile(it->first.c_str());
@@ -1072,7 +1072,7 @@ int Program::Run() const {
         do {
             tt.X("Program: Clear/Use");
             glClear(GL_COLOR_BUFFER_BIT);
-            glUseProgram(programID);
+            shader.Use();
             glBindVertexArray(VertexArrayID);
             tt.X("Program: Run");
             if (!game.Run()) {
@@ -1083,7 +1083,7 @@ int Program::Run() const {
             tt.X("Program: Draw");
             game.Draw(MatrixID);
             glBindVertexArray(0);
-            fontRenderer.RenderText("Foo", 25.0f, 25.0f, 1.0f, glm::vec3(0.5f, 0.8f, 0.2f));
+            textRenderer.RenderText("Foo", 25.0f, 25.0f, 1.0f, glm::vec3(0.5f, 0.8f, 0.2f));
 
             tt.X("Program: Swap/Poll");
 

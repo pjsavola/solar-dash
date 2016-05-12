@@ -4,8 +4,6 @@
 
 using namespace std;
 
-GLuint LoadShaders(const char *vertex_file_path, const char *fragment_file_path);
-
 // Base class for visible objects
 GLObject::GLObject(const GLObjectData &data) {
     assert(data.vertices.size() == data.colors.size());
@@ -41,7 +39,7 @@ void GLObject::DrawAt(GLuint id, const glm::mat4 &model, const glm::mat4 &view) 
     glDisableVertexAttribArray(1);
 }
 
-Program::Program(int width, int height, const std::string &title) : initialized(false) {
+Program::Program(int width, int height, const std::string &title) : initialized(false), shader(false) {
 
     if (!glfwInit()) {
         fprintf(stderr, "Failed to initialize GLFW\n");
@@ -82,17 +80,17 @@ Program::Program(int width, int height, const std::string &title) : initialized(
     //glBindVertexArray(VertexArrayID);
 
     // Create and compile our GLSL program from the shaders
-    programID = LoadShaders("sd.vertexshader", "sd.fragmentshader");
+    shader.Load("sd.vs", "sd.fs");
     // Get a handle for our "MVP" uniform
-    MatrixID = glGetUniformLocation(programID, "MVP");
+    MatrixID = shader.Get("MVP");
 
-    fontRenderer.Init();
+    textRenderer.Init();
 
     initialized = true;
 }
 
 Program::~Program() {
-    glDeleteProgram(programID);
+    shader.Unload();
     glDeleteVertexArrays(1, &VertexArrayID);
     glfwTerminate();
 }
@@ -174,18 +172,18 @@ GLuint LoadShaders(const char *vertex_file_path, const char *fragment_file_path)
     return ProgramID;
 }
 
-FontRenderer::~FontRenderer() {
-    glDeleteProgram(program);
+TextRenderer::~TextRenderer() {
+    shader.Unload();
     glDeleteVertexArrays(1, &VAO);
 }
 
-void FontRenderer::Init() {
-    program = LoadShaders("sd_font.vertexshader", "sd_font.fragmentshader");
+void TextRenderer::Init() {
+    shader.Load("sd_font.vs", "sd_font.fs");
 
     glm::mat4 projection = glm::ortho(0.0f, 700.0f, 0.0f, 700.0f);
-    glUseProgram(program);
-    glUniformMatrix4fv(glGetUniformLocation(program, "projection"), 1, GL_FALSE, &projection[0][0]);
-    glUniform1i(glGetUniformLocation(program, "text"), 0);
+    shader.Use();
+    glUniformMatrix4fv(shader.Get("projection"), 1, GL_FALSE, &projection[0][0]);
+    glUniform1i(shader.Get("text"), 0);
 
     glGenVertexArrays(1, &VAO);
     glGenBuffers(1, &VBO);
@@ -254,15 +252,12 @@ void FontRenderer::Init() {
     FT_Done_FreeType(ft);
 }
 
-void FontRenderer::RenderText(std::string text, GLfloat x, GLfloat y, GLfloat scale, glm::vec3 color) const {
+void TextRenderer::RenderText(std::string text, GLfloat x, GLfloat y, GLfloat scale, glm::vec3 color) const {
     // Activate corresponding render state
-    glUseProgram(program);
-    glUniform3f(glGetUniformLocation(program, "textColor"), color.x, color.y, color.z);
+    shader.Use();
+    glUniform3f(shader.Get("textColor"), color.x, color.y, color.z);
     glActiveTexture(GL_TEXTURE0);
     glBindVertexArray(VAO);
-
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     // Iterate through all characters
     std::string::const_iterator c;
@@ -296,7 +291,11 @@ void FontRenderer::RenderText(std::string text, GLfloat x, GLfloat y, GLfloat sc
         // Now advance cursors for next glyph (note that advance is number of 1/64 pixels)
         x += (ch.Advance >> 6) * scale; // Bitshift by 6 to get value in pixels (2^6 = 64)
     }
-    glDisable(GL_BLEND);
     glBindVertexArray(0);
     glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void Shader::Load(const char *vs_path, const char *fs_path) {
+    const string folder("shaders/");
+    id = LoadShaders((folder + vs_path).c_str(), (folder + fs_path).c_str());
 }
