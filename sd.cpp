@@ -1,5 +1,6 @@
 #include "sd_gl.h"
 #include "sd_data.h"
+#include "timer.h"
 
 #include <deque>
 #include <map>
@@ -871,35 +872,6 @@ private:
     const Grid &grid;
 };
 
-class Timer {
-public:
-    Timer() {
-        started = false;
-    }
-    void X(string target) {
-        double timeNow = glfwGetTime();
-        if (!started) {
-            started = true;
-        } else {
-            timeSpent[timingFor] += timeNow - previousTime;
-        }
-        previousTime = timeNow;
-        timingFor = target;
-    }
-    ~Timer() {
-        X("");
-        for (map<string, double>::const_iterator it = timeSpent.begin();
-             it != timeSpent.end(); ++it) {
-            printf("%s: %f\n", it->first.c_str(), it->second);
-        }
-    }
-private:
-    bool started;
-    double previousTime;
-    string timingFor;
-    map<string, double> timeSpent;
-};
-
 class Game {
 public:
     Game(const vector<string> &data, unsigned int laps, GLFWwindow * const window) : g(SECTOR_SIZE), laps(laps), window(window) {
@@ -925,7 +897,6 @@ public:
 
         set<const Object *> toNewLap;
 
-        timer.X("Moving");
         for (vector<Object *>::const_iterator it = objects.begin(); it != objects.end(); ++it) {
             const Sector *s = g.GetSector((*it)->GetLocation());
             if (s && dynamic_cast<const OneWaySector *>(s)) {
@@ -936,7 +907,6 @@ public:
             (*it)->Move(deltaTime);
         }
 
-        timer.X("Collision resolution to walls");
         // First check all collisions to solid grid elements
         for (vector<Object *>::const_iterator it = objects.begin(); it != objects.end(); ++it) {
             glm::vec3 n = g.GetCollisionNormal(*it);
@@ -946,7 +916,6 @@ public:
             }
         }
 
-        timer.X("Collision resolution to objects");
         // Then check collisions between objects
         // Revert movement for any colliding pair and start over again until no collisions are found.
         bool collision;
@@ -968,7 +937,6 @@ public:
             }
         } while (collision);
 
-        timer.X("Lap detection");
         // Check if any of the objects which are about to start a new lap actually do it
         for (set<const Object *>::const_iterator it = toNewLap.begin(); it != toNewLap.end(); ++it) {
             const Sector *s = g.GetSector((*it)->GetLocation());
@@ -981,16 +949,13 @@ public:
             }
         }
 
-        timer.X("Keyb inputs");
         GetKeyboardInputs(human, deltaTime);
 
         g.Debug(human);
 
         if (running) {
-            timer.X("AI acceleration");
             ai->Accelerate(deltaTime);
         }
-        timer.X("Rendering etc.");
         return true;
     }
 
@@ -1068,29 +1033,22 @@ int Program::Run() const {
         vector<string> map = ReadGridFromFile(it->first.c_str());
         const unsigned int laps = it->second;
         Game game(map, laps, window);
-        Timer tt;
         do {
-            tt.X("Program: Clear/Use");
             glClear(GL_COLOR_BUFFER_BIT);
             shader.Use();
             glBindVertexArray(VertexArrayID);
-            tt.X("Program: Run");
             if (!game.Run()) {
                 // over
                 break;
             }
 
-            tt.X("Program: Draw");
             game.Draw(MatrixID);
             glBindVertexArray(0);
             textRenderer.RenderText("Foo", 25.0f, 25.0f, 1.0f, glm::vec3(0.5f, 0.8f, 0.2f));
 
-            tt.X("Program: Swap/Poll");
-
             glfwSwapBuffers(window);
             glfwPollEvents();
 
-            tt.X("Program: Misc");
             if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS ||
                 glfwWindowShouldClose(window) != 0) {
                 break;
