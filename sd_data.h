@@ -24,6 +24,7 @@ struct ObjectData {
     float mass;
     float maxVelocity;
     float elasticity;
+    int health;
     GLObjectData objectData;
 };
 
@@ -73,6 +74,7 @@ ObjectData CreateObjectData(int id) {
     data.mass = 1.0f;
     data.maxVelocity = 2.0f;
     data.elasticity = 0.8f;
+    data.health = 100;
     int segments = 20 - id;
     glm::vec3 color;
     switch (id) {

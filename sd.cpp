@@ -20,6 +20,7 @@ public:
         location = initialLocation;
         velocity = glm::vec3(0.0f);
         acceleration = data.force / data.mass;
+        health = data.health;
     }
 
     void Draw(GLuint id, const glm::mat4 &view) const {
@@ -60,10 +61,17 @@ public:
         return len < radius + o->radius;
     }
 
+    int GetHealth() const {
+        return health;
+    }
+
     // Resolve collision for both objects.
     // Collision is currently assumed to be fully elastic.
     void ResolveCollision(Object * const o) {
         assert(Collides(o));
+
+        glm::vec3 old1 = velocity;
+        glm::vec3 old2 = o->velocity;
 
         const glm::vec3 ncoll = glm::normalize(o->location - location);
 
@@ -80,12 +88,19 @@ public:
         // ... but prevent movement.
         location = previousLocation;
         o->location = o->previousLocation;
+
+        health -= 2 * elasticity * o->elasticity * glm::length(velocity - old1);
+        o->health -= 2 * elasticity * o->elasticity * glm::length(o->velocity - old2);
     }
 
     // Resolve collision for this object.
     // Collision is not fully elastic.
     void ResolveCollision(const glm::vec3 &normal) {
+        glm::vec3 old = velocity;
         velocity = velocity - 2.0f * glm::dot(velocity, normal) * normal;
+
+        health -= 2 * elasticity * glm::length(velocity - old);
+
         velocity *= elasticity;
 
         // Prevent movement.
@@ -102,6 +117,7 @@ private:
     glm::vec3 location;
     glm::vec3 previousLocation;
     glm::vec3 velocity;
+    int health;
 };
 
 class Sector {
@@ -959,12 +975,15 @@ public:
         return true;
     }
 
-    void Draw(GLuint id) const {
+    void Draw(GLuint id, const TextRenderer &textRenderer) const {
         glm::mat4 camera = glm::translate(cameraOffset - human->GetLocation());
         g.Draw(id, camera);
         for (vector<Object *>::const_iterator it = objects.begin(); it != objects.end(); ++it) {
             (*it)->Draw(id, camera);
         }
+        stringstream ss;
+        ss << human->GetHealth();
+        textRenderer.RenderText(ss.str(), 25.0f, 25.0f, 1.0f, glm::vec3(0.5f, 0.8f, 0.2f));
     }
 private:
     void GetKeyboardInputs(Object *o, float deltaTime) {
@@ -1042,9 +1061,8 @@ int Program::Run() const {
                 break;
             }
 
-            game.Draw(MatrixID);
+            game.Draw(MatrixID, textRenderer);
             glBindVertexArray(0);
-            textRenderer.RenderText("Foo", 25.0f, 25.0f, 1.0f, glm::vec3(0.5f, 0.8f, 0.2f));
 
             glfwSwapBuffers(window);
             glfwPollEvents();
