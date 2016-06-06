@@ -64,6 +64,7 @@ GLObjectData CreateCircleData(float radius, int segments, const glm::vec3 &color
         data.colors.push_back(color * 0.3f);
         data.colors.push_back(color * 0.3f);
     }
+    data.color = color;
     return data;
 }
 
@@ -129,6 +130,7 @@ GLObjectData CreateSquareData(float size, const glm::vec3 &color, SectorType typ
     data.colors.push_back(tl * color);
     data.colors.push_back(bl * color);
     data.colors.push_back(br * color);
+    data.color = color;
     return data;
 }
 
@@ -146,6 +148,7 @@ GLObjectData CreateTriangleData(float size, const glm::vec3 &color, SectorType t
     data.colors.push_back(color);
     data.colors.push_back(color);
     data.colors.push_back(color);
+    data.color = color;
     return data;
 }
 

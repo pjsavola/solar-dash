@@ -17,6 +17,7 @@
 struct GLObjectData {
     std::vector<glm::vec3> vertices;
     std::vector<glm::vec3> colors;
+    glm::vec3 color;
 };
 
 // Base class for visible objects
@@ -25,11 +26,15 @@ protected:
     GLObject(const GLObjectData &data);
     ~GLObject();
     void DrawAt(GLuint id, const glm::mat4 &model, const glm::mat4 &view) const;
-
+public:
+    const glm::vec3& GetColor() const {
+        return color;
+    }
 private:
     unsigned int bufferSize;
     GLuint vertexbuffer;
     GLuint colorbuffer;
+    glm::vec3 color;
 };
 
 class Shader {

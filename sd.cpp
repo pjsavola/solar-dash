@@ -981,9 +981,16 @@ public:
         for (vector<Object *>::const_iterator it = objects.begin(); it != objects.end(); ++it) {
             (*it)->Draw(id, camera);
         }
+
+        // Render health
+        float x = 25.0;
         stringstream ss;
-        ss << human->GetHealth();
-        textRenderer.RenderText(ss.str(), 25.0f, 25.0f, 1.0f, glm::vec3(0.5f, 0.8f, 0.2f));
+        for (vector<Object *>::const_iterator it = objects.begin(); it != objects.end(); ++it) {
+            ss.str("");
+            ss << (*it)->GetHealth();
+            textRenderer.RenderText(ss.str(), x, 25.0f, 0.5f, (*it)->GetColor());
+            x += 50.0;
+        }
     }
 private:
     void GetKeyboardInputs(Object *o, float deltaTime) {

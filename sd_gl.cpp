@@ -16,6 +16,8 @@ GLObject::GLObject(const GLObjectData &data) {
     glGenBuffers(1, &colorbuffer);
     glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
     glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3) * bufferSize, &data.colors[0], GL_STATIC_DRAW);
+
+    color = data.color;
 }
 
 GLObject::~GLObject() {
