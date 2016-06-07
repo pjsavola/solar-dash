@@ -953,6 +953,23 @@ public:
             }
         } while (collision);
 
+        // Check death condition
+        for (vector<Object *>::iterator it = objects.begin(); it != objects.end(); ) {
+            if ((*it)->GetHealth() <= 0) {
+                if (human == *it) {
+                    human = 0;
+                }
+                delete *it;
+                it = objects.erase(it);
+                if (objects.empty()) {
+                    // Game over
+                    return false;
+                }
+            } else {
+                ++it;
+            }
+        }
+
         // Check if any of the objects which are about to start a new lap actually do it
         for (set<const Object *>::const_iterator it = toNewLap.begin(); it != toNewLap.end(); ++it) {
             const Sector *s = g.GetSector((*it)->GetLocation());
@@ -965,9 +982,10 @@ public:
             }
         }
 
-        GetKeyboardInputs(human, deltaTime);
-
-        g.Debug(human);
+        if (human) {
+            GetKeyboardInputs(human, deltaTime);
+            g.Debug(human);
+        }
 
         if (running) {
             ai->Accelerate(deltaTime);
@@ -976,7 +994,8 @@ public:
     }
 
     void Draw(GLuint id, const TextRenderer &textRenderer) const {
-        glm::mat4 camera = glm::translate(cameraOffset - human->GetLocation());
+        Object *cameraTarget = human ? human : *objects.begin();
+        glm::mat4 camera = glm::translate(cameraOffset - cameraTarget->GetLocation());
         g.Draw(id, camera);
         for (vector<Object *>::const_iterator it = objects.begin(); it != objects.end(); ++it) {
             (*it)->Draw(id, camera);
@@ -992,6 +1011,11 @@ public:
             x += 50.0;
         }
     }
+
+    bool IsRunning() const {
+        return running;
+    }
+
 private:
     void GetKeyboardInputs(Object *o, float deltaTime) {
         glm::vec3 direction = ZERO;
@@ -1043,7 +1067,6 @@ private:
     double initialTime;
     const unsigned int laps;
     GLFWwindow * const window;
-    Timer timer;
 };
 
 int Program::Run() const {
@@ -1074,9 +1097,14 @@ int Program::Run() const {
             glfwSwapBuffers(window);
             glfwPollEvents();
 
+            if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS) {
+                return 0;
+            }
             if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS ||
                 glfwWindowShouldClose(window) != 0) {
-                break;
+                if (game.IsRunning()) {
+                    break;
+                }
             }
         } while (true);
     }
