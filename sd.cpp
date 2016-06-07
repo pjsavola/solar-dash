@@ -5,6 +5,7 @@
 #include <deque>
 #include <map>
 #include <set>
+#include <algorithm>
 
 using namespace std;
 
@@ -21,6 +22,7 @@ public:
         velocity = glm::vec3(0.0f);
         acceleration = data.force / data.mass;
         health = data.health;
+        id = data.id;
     }
 
     void Draw(GLuint id, const glm::mat4 &view) const {
@@ -63,6 +65,10 @@ public:
 
     int GetHealth() const {
         return health;
+    }
+
+    int GetId() const {
+        return id;
     }
 
     // Resolve collision for both objects.
@@ -118,6 +124,7 @@ private:
     glm::vec3 previousLocation;
     glm::vec3 velocity;
     int health;
+    int id;
 };
 
 class Sector {
@@ -888,6 +895,42 @@ private:
     const Grid &grid;
 };
 
+class ObjectComparator {
+public:
+    ObjectComparator(const map<const Object *, int> &deathDistance, const map<const Object *, vector<float> > &lapTimes, unsigned int laps) : dd(deathDistance), lt(lapTimes), laps(laps) { }
+    bool operator() (const Object *a, const Object *b) const {
+        int laps1 = GetLaps(a);
+        int laps2 = GetLaps(b);
+        if (laps1 != laps2) {
+            // Different number of laps completed
+            return laps1 > laps2;
+        } else if (laps1 == laps) {
+            // All laps completed
+            return lt.find(a)->second.back() < lt.find(b)->second.back();
+        }
+        // Same number (but not all) laps completed.
+        map<const Object *, int>::const_iterator mit1 = dd.find(a);
+        map<const Object *, int>::const_iterator mit2 = dd.find(b);
+        int dist1 = mit1->second;
+        int dist2 = mit2->second;
+        if (dist1 == -1) {
+            return false;
+        } else if (dist2 == -1) {
+            return true;
+        }
+        return dist1 < dist2;
+    }
+
+    int GetLaps(const Object *o) const {
+        map<const Object *, vector<float> >::const_iterator it = lt.find(o);
+        return it == lt.end() ? 0 : it->second.size();
+    }
+private:
+    const map<const Object *, int> &dd;
+    const map<const Object *, vector<float> > &lt;
+    const unsigned int laps;
+};
+
 class Game {
 public:
     Game(const vector<string> &data, unsigned int laps, GLFWwindow * const window) : g(SECTOR_SIZE), laps(laps), window(window) {
@@ -898,6 +941,8 @@ public:
     }
 
     ~Game() {
+        DropObjects();
+        Standings();
         for (vector<Object *>::const_iterator it = objects.begin(); it != objects.end(); ++it) {
             delete *it;
         }
@@ -962,7 +1007,6 @@ public:
                 it = RemoveObject(it);
                 if (objects.empty()) {
                     // Game over
-                    Standings();
                     return false;
                 }
             } else {
@@ -982,7 +1026,6 @@ public:
                             RemoveObject(vit);
                             if (objects.empty()) {
                                 // Game over
-                                Standings();
                                 return false;
                             }
                         } else {
@@ -1028,11 +1071,25 @@ public:
     }
 
 private:
-    void Standings() const {
-        for (vector<Object *>::const_iterator it = deadObjects.begin(); it != deadObjects.end(); ++it) {
-
+    void DropObjects() {
+        for (vector<Object *>::iterator it = objects.begin(); it != objects.end(); ) {
+            it = RemoveObject(it);
         }
-        //printf("%f\n", times.back());
+    }
+
+    void Standings() const {
+        ObjectComparator cmp(deathDistance, lapTimes, laps);
+        vector<const Object *> standings(deadObjects.begin(), deadObjects.end());
+        sort(standings.begin(), standings.end(), cmp);
+        for (vector<const Object *>::const_iterator it = standings.begin(); it != standings.end(); ++it) {
+            int completedLaps = cmp.GetLaps(*it);
+            printf("%d: %d lap(s), ", (*it)->GetId(), completedLaps);
+            if (laps == completedLaps) {
+                printf("time: %f\n", lapTimes.find(*it)->second.back());
+            } else {
+                printf("dist: %d\n", deathDistance.find(*it)->second);
+            }
+        }
     }
 
     vector<Object *>::iterator RemoveObject(vector<Object *>::iterator it) {
