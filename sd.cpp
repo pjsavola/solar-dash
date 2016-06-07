@@ -901,6 +901,9 @@ public:
         for (vector<Object *>::const_iterator it = objects.begin(); it != objects.end(); ++it) {
             delete *it;
         }
+        for (vector<Object *>::const_iterator it = deadObjects.begin(); it != deadObjects.end(); ++it) {
+            delete *it;
+        }
         delete ai;
     }
 
@@ -956,13 +959,10 @@ public:
         // Check death condition
         for (vector<Object *>::iterator it = objects.begin(); it != objects.end(); ) {
             if ((*it)->GetHealth() <= 0) {
-                if (human == *it) {
-                    human = 0;
-                }
-                delete *it;
-                it = objects.erase(it);
+                it = RemoveObject(it);
                 if (objects.empty()) {
                     // Game over
+                    Standings();
                     return false;
                 }
             } else {
@@ -975,9 +975,20 @@ public:
             const Sector *s = g.GetSector((*it)->GetLocation());
             if (s && !dynamic_cast<const OneWaySector *>(s)) {
                 vector<float> &times = lapTimes[*it];
-                if (times.size() < laps) {
-                    times.push_back(float(glfwGetTime() - initialTime));
-                    printf("%f\n", times.back());
+                times.push_back(float(glfwGetTime() - initialTime));
+                if (times.size() >= laps) {
+                    for (vector<Object *>::iterator vit = objects.begin(); vit != objects.end(); ) {
+                        if (*it == *vit) {
+                            RemoveObject(vit);
+                            if (objects.empty()) {
+                                // Game over
+                                Standings();
+                                return false;
+                            }
+                        } else {
+                            ++vit;
+                        }
+                    }
                 }
             }
         }
@@ -1017,6 +1028,25 @@ public:
     }
 
 private:
+    void Standings() const {
+        for (vector<Object *>::const_iterator it = deadObjects.begin(); it != deadObjects.end(); ++it) {
+
+        }
+        //printf("%f\n", times.back());
+    }
+
+    vector<Object *>::iterator RemoveObject(vector<Object *>::iterator it) {
+        Object *o = *it;
+        if (human == o) {
+            human = 0;
+        }
+        deadObjects.push_back(o);
+        const Sector *sector = g.GetSector(o->GetLocation());
+        int distance = ai->GetDistance(sector);
+        deathDistance[o] = distance;
+        return objects.erase(it);
+    }
+
     void GetKeyboardInputs(Object *o, float deltaTime) {
         glm::vec3 direction = ZERO;
         if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
@@ -1060,6 +1090,7 @@ private:
     AI *ai;
     Object *human;
     vector<Object *> objects;
+    vector<Object *> deadObjects;
     map<const Object *, vector<float> > lapTimes;
     map<const Object *, int> deathDistance;
     glm::vec3 cameraOffset;
