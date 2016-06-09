@@ -1109,9 +1109,9 @@ private:
             ss.str("");
         }
         glBindVertexArray(0);
-        glfwSwapBuffers(window);
         glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_FALSE);
         do {
+            glfwSwapBuffers(window);
             glfwPollEvents();
         } while (glfwGetKey(window, GLFW_KEY_ENTER) != GLFW_PRESS);
         glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
