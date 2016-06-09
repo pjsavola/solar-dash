@@ -895,6 +895,12 @@ private:
     const Grid &grid;
 };
 
+// Sorts objects based on the number of laps completed.
+// If number of laps completed is equal, then sort based on
+// distance from the goal. Unknown distance is considered to be
+// the largest. Finally, if all lap count is equal and all laps
+// have been completed, it means that the distance would also be
+// equal and then we compare the time spent.
 class ObjectComparator {
 public:
     ObjectComparator(const map<const Object *, int> &deathDistance, const map<const Object *, vector<float> > &lapTimes, unsigned int laps) : dd(deathDistance), lt(lapTimes), laps(laps) { }
@@ -933,7 +939,7 @@ private:
 
 class Game {
 public:
-    Game(const vector<string> &data, unsigned int laps, GLFWwindow * const window) : g(SECTOR_SIZE), laps(laps), window(window) {
+    Game(const vector<string> &data, unsigned int laps, GLFWwindow * const window, const TextRenderer &tr) : g(SECTOR_SIZE), laps(laps), window(window), textRenderer(tr) {
         ai = new DummyAI(g);
         g.Initialize(data, objects, ai);
         human = ai->GetHuman(objects);
@@ -941,8 +947,6 @@ public:
     }
 
     ~Game() {
-        DropObjects();
-        Standings();
         for (vector<Object *>::const_iterator it = objects.begin(); it != objects.end(); ++it) {
             delete *it;
         }
@@ -950,6 +954,11 @@ public:
             delete *it;
         }
         delete ai;
+    }
+
+    void End() {
+        DropObjects();
+        Standings();
     }
 
     bool Run() {
@@ -1047,7 +1056,7 @@ public:
         return true;
     }
 
-    void Draw(GLuint id, const TextRenderer &textRenderer) const {
+    void Draw(GLuint id) const {
         Object *cameraTarget = human ? human : *objects.begin();
         glm::mat4 camera = glm::translate(cameraOffset - cameraTarget->GetLocation());
         g.Draw(id, camera);
@@ -1078,18 +1087,34 @@ private:
     }
 
     void Standings() const {
+        float y = 500.0f;
+        glClear(GL_COLOR_BUFFER_BIT);
+        textRenderer.RenderText("STANDINGS", 150.0f, y, 1.0f, glm::vec3(1.0f, 1.0f, 1.0f));
+        y -= 60.0f;
+        int i = 1;
         ObjectComparator cmp(deathDistance, lapTimes, laps);
         vector<const Object *> standings(deadObjects.begin(), deadObjects.end());
         sort(standings.begin(), standings.end(), cmp);
+        stringstream ss;
         for (vector<const Object *>::const_iterator it = standings.begin(); it != standings.end(); ++it) {
             int completedLaps = cmp.GetLaps(*it);
-            printf("%d: %d lap(s), ", (*it)->GetId(), completedLaps);
+            ss << (i++) << ". " << completedLaps << " lap(s), ";
             if (laps == completedLaps) {
-                printf("time: %f\n", lapTimes.find(*it)->second.back());
+                ss << "time: " << lapTimes.find(*it)->second.back();
             } else {
-                printf("dist: %d\n", deathDistance.find(*it)->second);
+                ss << "dist: " << deathDistance.find(*it)->second;
             }
+            textRenderer.RenderText(ss.str(), 150.0f, y, 0.5f, (*it)->GetColor());
+            y -= 30.0f;
+            ss.str("");
         }
+        glBindVertexArray(0);
+        glfwSwapBuffers(window);
+        glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_FALSE);
+        do {
+            glfwPollEvents();
+        } while (glfwGetKey(window, GLFW_KEY_ENTER) != GLFW_PRESS);
+        glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_TRUE);
     }
 
     vector<Object *>::iterator RemoveObject(vector<Object *>::iterator it) {
@@ -1155,6 +1180,7 @@ private:
     double initialTime;
     const unsigned int laps;
     GLFWwindow * const window;
+    const TextRenderer &textRenderer;
 };
 
 int Program::Run() const {
@@ -1169,7 +1195,7 @@ int Program::Run() const {
              season.begin(); it != season.end(); ++it) {
         vector<string> map = ReadGridFromFile(it->first.c_str());
         const unsigned int laps = it->second;
-        Game game(map, laps, window);
+        Game game(map, laps, window, textRenderer);
         do {
             glClear(GL_COLOR_BUFFER_BIT);
             shader.Use();
@@ -1179,7 +1205,7 @@ int Program::Run() const {
                 break;
             }
 
-            game.Draw(MatrixID, textRenderer);
+            game.Draw(MatrixID);
             glBindVertexArray(0);
 
             glfwSwapBuffers(window);
@@ -1195,6 +1221,7 @@ int Program::Run() const {
                 }
             }
         } while (true);
+        game.End();
     }
 
     return 0;
