@@ -937,6 +937,14 @@ private:
     const unsigned int laps;
 };
 
+uint64_t Hash(const char *s, unsigned int seed = 0) {
+    unsigned int hash = seed;
+    while (*s) {
+        hash = hash * 101 + *s++;
+    }
+    return hash;
+}
+
 class Game {
 public:
     Game(const vector<string> &data, unsigned int laps, GLFWwindow * const window, const TextRenderer &tr) : g(SECTOR_SIZE), laps(laps), window(window), textRenderer(tr) {
@@ -944,6 +952,11 @@ public:
         g.Initialize(data, objects, ai);
         human = ai->GetHuman(objects);
         running = false;
+        time = 0.0f;
+        hash = 0;
+        for (vector<string>::const_iterator it = data.begin(); it != data.end(); ++it) {
+            hash = Hash(it->c_str(), hash);
+        }
     }
 
     ~Game() {
@@ -1030,6 +1043,9 @@ public:
                 vector<float> &times = lapTimes[*it];
                 times.push_back(float(glfwGetTime() - initialTime));
                 if (times.size() >= laps) {
+                    if (*it == human) {
+                        time = times.back();
+                    }
                     for (vector<Object *>::iterator vit = objects.begin(); vit != objects.end(); ) {
                         if (*it == *vit) {
                             RemoveObject(vit);
@@ -1108,6 +1124,19 @@ private:
             y -= 30.0f;
             ss.str("");
         }
+        if (time > 0.0f) {
+            map<uint64_t, float> highscores = ReadRecords("highscores.dat");
+            map<uint64_t, float>::const_iterator it = highscores.find(hash);
+            if (it == highscores.end()) {
+                highscores[hash] = time;
+                textRenderer.RenderText("New record!", 150.0f, y, 0.3f, glm::vec3(0.8f, 0.8f, 0.8f));
+                WriteRecords("highscores.dat", highscores);
+            } else if (it->second > time) {
+                highscores[hash] = time;
+                textRenderer.RenderText("New record!", 150.0f, y, 0.3f, glm::vec3(0.8f, 0.8f, 0.8f));
+                WriteRecords("highscores.dat", highscores);
+            }
+        }
         glBindVertexArray(0);
         glfwSetInputMode(window, GLFW_STICKY_KEYS, GL_FALSE);
         do {
@@ -1181,6 +1210,8 @@ private:
     const unsigned int laps;
     GLFWwindow * const window;
     const TextRenderer &textRenderer;
+    uint64_t hash;
+    float time;
 };
 
 int Program::Run() const {

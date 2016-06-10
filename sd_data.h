@@ -1,6 +1,7 @@
 #include <string>
 #include <vector>
 #include <deque>
+#include <map>
 #include <fstream>
 #include <sstream>
 
@@ -192,4 +193,38 @@ std::deque<std::pair<std::string, unsigned int> > ReadSeason(const char *file) {
         }
     }
     return result;
+}
+
+std::map<uint64_t, float> ReadRecords(const char *file) {
+    std::map<uint64_t, float> highscores;
+    std::string line;
+    std::ifstream stream(file);
+    if (stream.is_open()) {
+        while (getline(stream, line)) {
+            size_t pos = line.find(',');
+            if (pos != std::string::npos) {
+                uint64_t hash;
+                float time;
+                std::stringstream ss;
+                ss << line.substr(pos + 1);
+                ss >> time;
+                std::stringstream ss2;
+                ss2 << line.substr(0, pos);
+                ss2 >> hash;
+                highscores[hash] = time;
+            }
+        }
+        stream.close();
+    }
+    return highscores;
+}
+
+void WriteRecords(const char *file, const std::map<uint64_t, float> &highscores) {
+    std::ofstream stream(file);
+    if (stream.is_open()) {
+        for (std::map<uint64_t, float>::const_iterator it = highscores.begin(); it != highscores.end(); ++it) {
+            stream << it->first << "," << it->second << std::endl;
+        }
+        stream.close();
+    }
 }
