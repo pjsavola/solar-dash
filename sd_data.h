@@ -95,7 +95,7 @@ ObjectData CreateObjectData(int id) {
         color = glm::vec3(1.0f, 1.0f, 0.0f);
         break;
     case 4:
-        color = glm::vec3(1.0f, 0.0f, 1.0f);
+        color = glm::vec3(1.0f, 0.3f, 1.0f);
         break;
     case 5:
         color = glm::vec3(0.0f, 1.0f, 1.0f);
@@ -104,10 +104,10 @@ ObjectData CreateObjectData(int id) {
         color = glm::vec3(1.0f, 1.0f, 1.0f);
         break;
     case 7:
-        color = glm::vec3(0.7f, 0.2f, 0.5f);
+        color = glm::vec3(0.9f, 0.57f, 0.0f);
         break;
     case 8:
-        color = glm::vec3(0.2f, 0.9f, 0.2f);
+        color = glm::vec3(0.67f, 0.0f, 1.0f);
         break;
     }
     data.objectData = CreateCircleData(data.radius, segments, color);
