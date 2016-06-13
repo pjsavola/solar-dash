@@ -938,7 +938,7 @@ private:
     const unsigned int laps;
 };
 
-uint64_t Hash(const char *s, unsigned int seed = 0) {
+uint64_t Hash(const char *s, uint64_t seed = 0) {
     unsigned int hash = seed;
     while (*s) {
         hash = hash * 101 + *s++;
@@ -954,7 +954,7 @@ public:
         human = ai->GetHuman(objects);
         running = false;
         time = 0.0f;
-        hash = 0;
+        hash = laps;
         for (vector<string>::const_iterator it = data.begin(); it != data.end(); ++it) {
             hash = Hash(it->c_str(), hash);
         }
