@@ -939,7 +939,7 @@ private:
 };
 
 uint64_t Hash(const char *s, uint64_t seed = 0) {
-    unsigned int hash = seed;
+    uint64_t hash = seed;
     while (*s) {
         hash = hash * 101 + *s++;
     }
@@ -1054,6 +1054,7 @@ public:
                                 // Game over
                                 return false;
                             }
+							break;
                         } else {
                             ++vit;
                         }

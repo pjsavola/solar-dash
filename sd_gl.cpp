@@ -138,8 +138,8 @@ GLuint LoadShaders(const char *vertex_file_path, const char *fragment_file_path)
     glGetShaderiv(VertexShaderID, GL_COMPILE_STATUS, &Result);
     glGetShaderiv(VertexShaderID, GL_INFO_LOG_LENGTH, &InfoLogLength);
     vector<char> VertexShaderErrorMessage(InfoLogLength);
-    glGetShaderInfoLog(VertexShaderID, InfoLogLength, NULL, &VertexShaderErrorMessage[0]);
-    fprintf(stdout, "%s\n", &VertexShaderErrorMessage[0]);
+    glGetShaderInfoLog(VertexShaderID, InfoLogLength, NULL, VertexShaderErrorMessage.data());
+    fprintf(stdout, "%s\n", VertexShaderErrorMessage.data());
 
     // Compile Fragment Shader
     printf("Compiling shader : %s\n", fragment_file_path);
@@ -151,8 +151,8 @@ GLuint LoadShaders(const char *vertex_file_path, const char *fragment_file_path)
     glGetShaderiv(FragmentShaderID, GL_COMPILE_STATUS, &Result);
     glGetShaderiv(FragmentShaderID, GL_INFO_LOG_LENGTH, &InfoLogLength);
     vector<char> FragmentShaderErrorMessage(InfoLogLength);
-    glGetShaderInfoLog(FragmentShaderID, InfoLogLength, NULL, &FragmentShaderErrorMessage[0]);
-    fprintf(stdout, "%s\n", &FragmentShaderErrorMessage[0]);
+    glGetShaderInfoLog(FragmentShaderID, InfoLogLength, NULL, FragmentShaderErrorMessage.data());
+    fprintf(stdout, "%s\n", FragmentShaderErrorMessage.data());
 
     // Link the program
     fprintf(stdout, "Linking program\n");
@@ -165,8 +165,8 @@ GLuint LoadShaders(const char *vertex_file_path, const char *fragment_file_path)
     glGetProgramiv(ProgramID, GL_LINK_STATUS, &Result);
     glGetProgramiv(ProgramID, GL_INFO_LOG_LENGTH, &InfoLogLength);
     vector<char> ProgramErrorMessage( glm::max(InfoLogLength, int(1)) );
-    glGetProgramInfoLog(ProgramID, InfoLogLength, NULL, &ProgramErrorMessage[0]);
-    fprintf(stdout, "%s\n", &ProgramErrorMessage[0]);
+    glGetProgramInfoLog(ProgramID, InfoLogLength, NULL, ProgramErrorMessage.data());
+    fprintf(stdout, "%s\n", ProgramErrorMessage.data());
 
     glDeleteShader(VertexShaderID);
     glDeleteShader(FragmentShaderID);
