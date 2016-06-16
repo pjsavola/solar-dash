@@ -96,8 +96,8 @@ public:
         location = previousLocation;
         o->location = o->previousLocation;
 
-        health -= 2 * elasticity * o->elasticity * glm::length(velocity - old1);
-        o->health -= 2 * elasticity * o->elasticity * glm::length(o->velocity - old2);
+        health -= int(2 * elasticity * o->elasticity * glm::length(velocity - old1));
+        o->health -= int(2 * elasticity * o->elasticity * glm::length(o->velocity - old2));
     }
 
     // Resolve collision for this object.
@@ -106,7 +106,7 @@ public:
         glm::vec3 old = velocity;
         velocity = velocity - 2.0f * glm::dot(velocity, normal) * normal;
 
-        health -= 2 * elasticity * glm::length(velocity - old);
+        health -= int(2 * elasticity * glm::length(velocity - old));
 
         velocity *= elasticity;
 
@@ -1216,14 +1216,15 @@ private:
     float time;
 };
 
-int Program::Run() const {
+int Program::Run(const char *input) const {
 
     if (!initialized) {
         return -1;
     }
 
     srand((unsigned int) time(NULL));
-    deque<pair<string, unsigned int> > season = ReadSeason("maps/season1.ssn");
+	string ssn = string("maps/") + input;
+	deque<pair<string, unsigned int> > season = ReadSeason(ssn.c_str());
     for (deque<pair<string, unsigned int> >::const_iterator it =
              season.begin(); it != season.end(); ++it) {
         vector<string> map = ReadGridFromFile(it->first.c_str());
@@ -1260,7 +1261,8 @@ int Program::Run() const {
     return 0;
 }
 
-int main() {
+int main(int argc, char **argv) {
     Program p(700, 700, "Solar Dash");
-    return p.Run();
+	const char *input = argc > 1 ? argv[1] : "season1.ssn";
+    return p.Run(input);
 }

@@ -176,6 +176,7 @@ std::vector<std::string> ReadGridFromFile(const char *file) {
 }
 
 std::deque<std::pair<std::string, unsigned int> > ReadSeason(const char *file) {
+	printf("Loading %s\n", file);
     std::deque<std::pair<std::string, unsigned int> > result;
     std::string line;
     std::ifstream stream(file);
@@ -188,7 +189,7 @@ std::deque<std::pair<std::string, unsigned int> > ReadSeason(const char *file) {
                 unsigned int laps;
                 ss >> laps;
                 result.push_back(std::make_pair(line.substr(0, pos), laps));
-                printf("%s -- %d\n", line.substr(0, pos).c_str(), laps);
+                // printf("%s -- %d\n", line.substr(0, pos).c_str(), laps);
             }
         }
     }

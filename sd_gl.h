@@ -4,7 +4,7 @@
 #define GLM_FORCE_RADIANS
 
 #include <GL/glew.h>
-#include <GLFW/glfw3.h>
+#include <glfw3.h>
 #include <glm/gtx/transform.hpp>
 
 #include <ft2build.h>
@@ -89,7 +89,7 @@ class Program {
 public:
     Program(int width, int height, const std::string &title);
     ~Program();
-    int Run() const;
+    int Run(const char *input) const;
 
 private:
     GLFWwindow *window;
