@@ -30,11 +30,13 @@ public:
     const glm::vec3& GetColor() const {
         return color;
     }
+	void AdjustBrightness(float newBrightness);
 private:
     unsigned int bufferSize;
     GLuint vertexbuffer;
     GLuint colorbuffer;
     glm::vec3 color;
+	const std::vector<glm::vec3> colorData;
 };
 
 class Shader {

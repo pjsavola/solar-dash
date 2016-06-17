@@ -73,9 +73,9 @@ GLObjectData CreateCircleData(float radius, int segments, const glm::vec3 &color
 ObjectData CreateObjectData(int id) {
     ObjectData data;
     data.radius = 0.04f;
-    data.force = 1.0f;
+    data.force = 1.5f;
     data.mass = 1.0f;
-    data.maxVelocity = 2.0f;
+    data.maxVelocity = 1.5f;
     data.elasticity = 0.8f;
     data.health = 100;
     data.id = id;
@@ -112,6 +112,10 @@ ObjectData CreateObjectData(int id) {
     }
     data.objectData = CreateCircleData(data.radius, segments, color);
     return data;
+}
+
+GLObjectData CreateCircleDecorator() {
+	return CreateCircleData(0.005f, 6, glm::vec3(1.0f, 1.0f, 0.0f));
 }
 
 GLObjectData CreateSquareData(float size, const glm::vec3 &color, SectorType type) {

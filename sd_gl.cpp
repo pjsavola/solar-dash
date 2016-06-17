@@ -5,7 +5,7 @@
 using namespace std;
 
 // Base class for visible objects
-GLObject::GLObject(const GLObjectData &data) {
+GLObject::GLObject(const GLObjectData &data) : colorData(data.colors) {
     assert(data.vertices.size() == data.colors.size());
     bufferSize = data.vertices.size();
 
@@ -22,7 +22,19 @@ GLObject::GLObject(const GLObjectData &data) {
 
 GLObject::~GLObject() {
     glDeleteBuffers(1, &vertexbuffer);
-    glDeleteBuffers(1, &colorbuffer);
+	glDeleteBuffers(1, &colorbuffer);
+}
+
+void GLObject::AdjustBrightness(float brigthness) {
+	glDeleteBuffers(1, &colorbuffer);
+	vector<glm::vec3> newColorData;
+	newColorData.reserve(colorData.size());
+	for (vector<glm::vec3>::const_iterator it = colorData.begin(); it != colorData.end(); ++it) {
+		newColorData.push_back(*it * brigthness);
+	}
+	glGenBuffers(1, &colorbuffer);
+	glBindBuffer(GL_ARRAY_BUFFER, colorbuffer);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3) * bufferSize, &newColorData[0], GL_STATIC_DRAW);
 }
 
 void GLObject::DrawAt(GLuint id, const glm::mat4 &model, const glm::mat4 &view) const {

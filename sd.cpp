@@ -10,6 +10,30 @@
 
 using namespace std;
 
+class AccelerationDecorator : public GLObject {
+public:
+	AccelerationDecorator(float lifeTime, const glm::vec3 &location) : GLObject(CreateCircleDecorator()), location(location), lifeTime(lifeTime) {
+		timeLeft = lifeTime;
+	}
+
+	bool ReduceTime(float time) {
+		timeLeft -= time;
+		if (timeLeft > 0) {
+			AdjustBrightness(timeLeft / lifeTime);
+		}
+		return timeLeft < 0;
+	}
+
+	void Draw(GLuint id, const glm::mat4 &view) const {
+		DrawAt(id, glm::translate(location), view);
+	}
+
+private:
+	const float lifeTime;
+	float timeLeft;
+	const glm::vec3 location;
+};
+
 // Circle shaped object
 class Object : public GLObject {
 public:
@@ -26,9 +50,21 @@ public:
         id = data.id;
     }
 
+	~Object() {
+		for (vector<AccelerationDecorator *>::iterator it = decorators.begin(); it != decorators.end(); ++it) {
+			delete *it;
+		}
+	}
+	
     void Draw(GLuint id, const glm::mat4 &view) const {
-        DrawAt(id, glm::translate(location), view);
-    }
+		DrawAt(id, glm::translate(location), view);
+	}
+
+	void DrawDecorators(GLuint id, const glm::mat4 &view) const {
+		for (vector<AccelerationDecorator *>::const_iterator it = decorators.begin(); it != decorators.end(); ++it) {
+			(*it)->Draw(id, view);
+		}
+	}
 
     const glm::vec3& GetLocation() const {
         return location;
@@ -47,16 +83,31 @@ public:
     }
 
     void Move(float time) {
+		// Remove outdated acceleration decorators
+		for (vector<AccelerationDecorator *>::iterator it = decorators.begin(); it != decorators.end(); ) {
+			if ((*it)->ReduceTime(time)) {
+				delete *it;
+				it = decorators.erase(it);
+			}
+			else {
+				++it;
+			}
+		}
         // Save the previous location because the object may collide in the new location.
         previousLocation = location;
         location += time * velocity;
+		decorators.push_back(new AccelerationDecorator(0.25f, previousLocation));
     }
 
     void Accelerate(float time, const glm::vec3 &directions) {
-        velocity += time * acceleration * directions;
-        if (glm::length(velocity) > maxVelocity) {
-            velocity = glm::normalize(velocity) * maxVelocity;
-        }
+		glm::vec3 newVelocity = velocity + time * acceleration * directions;
+		if (glm::dot(directions, velocity) > 0) {
+			if (glm::length(newVelocity) > maxVelocity) {
+				// Do not increase speed if it's beyond max.
+				newVelocity = normalize(newVelocity) * maxVelocity;
+			}
+		}
+		velocity = newVelocity;
     }
 
     bool Collides(const Object * const o) const {
@@ -126,6 +177,7 @@ private:
     glm::vec3 velocity;
     int health;
     int id;
+	vector<AccelerationDecorator *> decorators;
 };
 
 class Sector {
@@ -1078,6 +1130,11 @@ public:
         Object *cameraTarget = human ? human : *objects.begin();
         glm::mat4 camera = glm::translate(cameraOffset - cameraTarget->GetLocation());
         g.Draw(id, camera);
+
+		// Draw decorators first so they will be behind other objects in case of overlap.
+		for (vector<Object *>::const_iterator it = objects.begin(); it != objects.end(); ++it) {
+			(*it)->DrawDecorators(id, camera);
+		}
         for (vector<Object *>::const_iterator it = objects.begin(); it != objects.end(); ++it) {
             (*it)->Draw(id, camera);
         }
